@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  engine = "client"
+  runtime = "bun"
+
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("User") // Admin or User
+  createdAt DateTime @default(now())
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String   // e.g., "Started container", "Stopped host"
+  deviceId   String?  // Cloudflare WARP device ID (no FK, just reference)
+  containerId String?
+  details    String?  // JSON string for additional info
+  timestamp  DateTime @default(now())
+
+  @@map("audit_logs")
+}
