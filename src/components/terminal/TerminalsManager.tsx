@@ -5,7 +5,7 @@
  * VSCode-style terminal manager with multiple terminals and split view
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -33,6 +33,7 @@ export default function TerminalsManager() {
   const [gridLayout, setGridLayout] = useState<
     "single" | "2x1" | "1x2" | "2x2"
   >("single");
+  const [isMobile, setIsMobile] = useState(false);
 
   // New terminal creation state
   const [selectedHost, setSelectedHost] = useState<string>("");
@@ -48,6 +49,21 @@ export default function TerminalsManager() {
     createTerminal,
   } = useTerminals();
   const { onlineHosts, getContainers } = useDocker();
+
+  // Detect mobile screen size and force single layout
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile && gridLayout !== "single") {
+        setGridLayout("single");
+      }
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, [gridLayout]);
 
   const availableContainers = useMemo(() => {
     if (!selectedHost) return [];
@@ -115,7 +131,7 @@ export default function TerminalsManager() {
   return (
     <>
       {/* Bottom Bar Toggle */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background">
+      <div className="  bottom-0 left-0 right-0 z-40 border-t bg-background">
         <div className="flex items-center justify-between px-4 py-2">
           <div className="flex items-center gap-4">
             <Button
@@ -137,109 +153,124 @@ export default function TerminalsManager() {
 
             {open && (
               <>
-                <div className="h-6 w-px bg-border" />
-                {/* Host Selector */}
-                <Select value={selectedHost} onValueChange={setSelectedHost}>
-                  <SelectTrigger className="w-[200px] h-8">
-                    <SelectValue placeholder="Select host..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {onlineHosts.length === 0 && (
-                      <SelectItem value="_none" disabled>
-                        No hosts online
-                      </SelectItem>
-                    )}
-                    {onlineHosts.map((host) => (
-                      <SelectItem key={host.id} value={host.tunnelUrl}>
-                        <span>{host.name}</span>
-                        <span className="text-xs">({host.tunnelUrl})</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Mobile: Vertical layout, Desktop: Horizontal with separator */}
+                <div className="sm:hidden w-px h-6 bg-border" />
+                <div className="hidden sm:block w-px h-6 bg-border" />
 
-                {/* Container Selector */}
-                <Select
-                  value={selectedContainer}
-                  onValueChange={setSelectedContainer}
-                  disabled={!selectedHost}
-                >
-                  <SelectTrigger className="w-[200px] h-8">
-                    <SelectValue placeholder="Select container..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableContainers.length === 0 && (
-                      <SelectItem value="_none" disabled>
-                        No running containers
-                      </SelectItem>
-                    )}
-                    {availableContainers
-                      .filter((c) => c.state === "running")
-                      .map((container) => (
-                        <SelectItem key={container.id} value={container.id}>
-                          {container.names[0] || container.id.substring(0, 12)}
+                {/* Controls Container - Stack vertically on mobile */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                  {/* Host Selector */}
+                  <Select value={selectedHost} onValueChange={setSelectedHost}>
+                    <SelectTrigger className="w-full sm:w-[200px] h-8">
+                      <SelectValue placeholder="Select host..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {onlineHosts.length === 0 && (
+                        <SelectItem value="_none" disabled>
+                          No hosts online
+                        </SelectItem>
+                      )}
+                      {onlineHosts.map((host) => (
+                        <SelectItem key={host.id} value={host.tunnelUrl}>
+                          <span>{host.name}</span>
+                          <span className="text-xs">({host.tunnelUrl})</span>
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
 
-                {/* New Terminal Button */}
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    createTerminal(selectedHost, selectedContainer)
-                  }
-                  disabled={!selectedHost || !selectedContainer}
-                  className="gap-2 h-8"
-                >
-                  <Plus className="w-4 h-4" />
-                  New Terminal
-                </Button>
+                  {/* Container Selector */}
+                  <Select
+                    value={selectedContainer}
+                    onValueChange={setSelectedContainer}
+                    disabled={!selectedHost}
+                  >
+                    <SelectTrigger className="w-full sm:w-[200px] h-8">
+                      <SelectValue placeholder="Select container..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableContainers.length === 0 && (
+                        <SelectItem value="_none" disabled>
+                          No running containers
+                        </SelectItem>
+                      )}
+                      {availableContainers
+                        .filter((c) => c.state === "running")
+                        .map((container) => (
+                          <SelectItem key={container.id} value={container.id}>
+                            {container.names[0] ||
+                              container.id.substring(0, 12)}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
 
-                {terminals.size > 0 && (
-                  <>
-                    <div className="h-6 w-px bg-border" />
+                  {/* New Terminal Button */}
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      createTerminal(selectedHost, selectedContainer)
+                    }
+                    disabled={!selectedHost || !selectedContainer}
+                    className="gap-2 h-8 w-full sm:w-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="sm:inline">New Terminal</span>
+                    <span className="sm:hidden">New</span>
+                  </Button>
 
-                    {/* Layout Buttons */}
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant={gridLayout === "single" ? "default" : "ghost"}
-                        onClick={() => changeLayout("single")}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Maximize2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={gridLayout === "2x1" ? "default" : "ghost"}
-                        onClick={() => changeLayout("2x1")}
-                        className="h-8 w-8 p-0"
-                        disabled={terminals.size < 2}
-                      >
-                        <SplitSquareHorizontal className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={gridLayout === "1x2" ? "default" : "ghost"}
-                        onClick={() => changeLayout("1x2")}
-                        className="h-8 w-8 p-0"
-                        disabled={terminals.size < 2}
-                      >
-                        <SplitSquareHorizontal className="w-4 h-4 rotate-90" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={gridLayout === "2x2" ? "default" : "ghost"}
-                        onClick={() => changeLayout("2x2")}
-                        className="h-8 w-8 p-0"
-                        disabled={terminals.size < 3}
-                      >
-                        <span className="text-xs font-bold">2x2</span>
-                      </Button>
-                    </div>
-                  </>
-                )}
+                  {terminals.size > 0 && (
+                    <>
+                      {/* Mobile: No separator needed in vertical layout */}
+                      <div className="hidden sm:block w-px h-6 bg-border" />
+
+                      {/* Layout Buttons - Smaller and more compact on mobile */}
+                      <div className="flex gap-1 flex-wrap justify-center sm:justify-start">
+                        <Button
+                          size="sm"
+                          variant={
+                            gridLayout === "single" ? "default" : "ghost"
+                          }
+                          onClick={() => changeLayout("single")}
+                          className="h-8 w-8 p-0 flex-shrink-0"
+                          title="Single terminal"
+                        >
+                          <Maximize2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={gridLayout === "2x1" ? "default" : "ghost"}
+                          onClick={() => changeLayout("2x1")}
+                          className="h-8 w-8 p-0 flex-shrink-0"
+                          disabled={terminals.size < 2}
+                          title="Split horizontally"
+                        >
+                          <SplitSquareHorizontal className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={gridLayout === "1x2" ? "default" : "ghost"}
+                          onClick={() => changeLayout("1x2")}
+                          className="h-8 w-8 p-0 flex-shrink-0 hidden sm:flex"
+                          disabled={terminals.size < 2}
+                          title="Split vertically"
+                        >
+                          <SplitSquareHorizontal className="w-4 h-4 rotate-90" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={gridLayout === "2x2" ? "default" : "ghost"}
+                          onClick={() => changeLayout("2x2")}
+                          className="h-8 w-8 p-0 flex-shrink-0 hidden md:flex"
+                          disabled={terminals.size < 3}
+                          title="2x2 grid"
+                        >
+                          <span className="text-xs font-bold">2x2</span>
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -282,7 +313,10 @@ export default function TerminalsManager() {
         {terminals.size > 0 && (
           <div
             className={`relative p-2 bg-[#1a1b26] ${!open ? "hidden" : ""}`}
-            style={{ height: "400px" }}
+            style={{
+              height: "clamp(300px, 40vh, 500px)",
+              maxHeight: "70vh",
+            }}
           >
             {/* Grid overlay for visualization */}
             <div
@@ -360,9 +394,6 @@ export default function TerminalsManager() {
           </div>
         )}
       </div>
-
-      {/* Add bottom padding to main content to prevent overlap */}
-      <div className={open && terminals.size > 0 ? "pb-[450px]" : "pb-12"} />
     </>
   );
 }

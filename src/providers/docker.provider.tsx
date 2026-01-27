@@ -202,17 +202,49 @@ export const useDocker = () => {
 };
 
 const useDockerProvider = (): DockerState => {
-  const [hosts, setHosts] = useState<RouterOutputs["docker"]["getHosts"]>([]);
+  // localStorage utility functions
+  const saveToLocalStorage = (key: string, data: object) => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(key, JSON.stringify(data));
+      } catch (err) {
+        console.warn("[DOCKER] Failed to save to localStorage:", err);
+      }
+    }
+  };
+
+  const loadFromLocalStorage = (key: string) => {
+    if (typeof window !== "undefined") {
+      try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : null;
+      } catch (err) {
+        console.warn("[DOCKER] Failed to load from localStorage:", err);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  // Load cached data first
+  const cachedHosts = loadFromLocalStorage("dockerflare-hosts");
+  const cachedContainers = loadFromLocalStorage("dockerflare-containers");
+
+  const [hosts, setHosts] = useState<RouterOutputs["docker"]["getHosts"]>(
+    cachedHosts || [],
+  );
   const [containers, setContainers] = useState<
     Map<string, NormalizedContainer[]>
-  >(new Map());
+  >(new Map(cachedContainers || []));
   const [selectedContainer, setSelectedContainer] =
     useState<NormalizedContainer | null>(null);
   const [selectedHost, setSelectedHost] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [loadState, setLoadState] = useState<DockerProviderLoadState>("init");
   const [error, setError] = useState<string | null>(null);
-  const [firstRun, setFirstRun] = useState(false);
+  const [firstRun, setFirstRun] = useState(
+    cachedHosts && cachedContainers ? true : false,
+  );
   // const [onlineHosts, setOnlineHosts] = useState<string[]>([]);
 
   // WebSocket connections registry - keyed by containerId
@@ -289,8 +321,10 @@ const useDockerProvider = (): DockerState => {
             connection.logsCallbacks.forEach((cb) => cb(connection!.logsData));
           }
 
-          if (message.type === "stats" && connection) {
-            connection.statsCallbacks.forEach((cb) => cb(message.data));
+          if (message.type === "stats" && connection && message.data) {
+            connection.statsCallbacks.forEach((cb) =>
+              cb(message.data as ContainerStats),
+            );
           }
 
           if (message.type === "terminal_output" && connection) {
@@ -763,6 +797,8 @@ const useDockerProvider = (): DockerState => {
           }),
         );
         setHosts(fetchedHosts);
+        // Save hosts to localStorage when fetched
+        saveToLocalStorage("dockerflare-hosts", fetchedHosts);
       }
     }
     assignHosts();
@@ -771,6 +807,16 @@ const useDockerProvider = (): DockerState => {
   const onlineHosts = useMemo(() => {
     return hosts.filter((h) => h.status === "Online");
   }, [hosts]);
+
+  // Save containers to localStorage when updated
+  useEffect(() => {
+    if (containers.size > 0) {
+      saveToLocalStorage(
+        "dockerflare-containers",
+        Array.from(containers.entries()),
+      );
+    }
+  }, [containers, saveToLocalStorage]);
 
   useEffect(() => {
     const ref = connectionsRef.current;

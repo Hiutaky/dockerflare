@@ -5,7 +5,7 @@
  * Manages its own xterm instance and WebSocket connection
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { useDocker } from "@/providers/docker.provider";
@@ -31,10 +31,65 @@ export default function TerminalPane({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastOutputLengthRef = useRef<number>(0);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [fontSize, setFontSize] = useState(14);
 
   const { subscribeTerminal, sendTerminalInput, sendTerminalResize } =
     useDocker();
+
+  // Calculate responsive font size based on screen width
+  const calculateFontSize = useCallback(() => {
+    if (typeof window === "undefined") return 14;
+    const width = window.innerWidth;
+    // Smaller font on mobile, larger on desktop
+    if (width < 640) return 12; // mobile
+    if (width < 1024) return 13; // tablet
+    return 14; // desktop
+  }, []);
+
+  // Update font size when screen resizes
+  useEffect(() => {
+    const updateFontSize = () => {
+      const newSize = calculateFontSize();
+      setFontSize(newSize);
+
+      // Update existing terminal if initialized
+      if (xtermRef.current) {
+        xtermRef.current.options.fontSize = newSize;
+        // Refit after font size change
+        if (fitAddonRef.current) {
+          try {
+            fitAddonRef.current.fit();
+            if (xtermRef.current) {
+              sendTerminalResize(
+                containerId,
+                xtermRef.current.rows,
+                xtermRef.current.cols,
+              );
+            }
+          } catch (err) {
+            console.error("Error refitting after font size change:", err);
+          }
+        }
+      }
+    };
+
+    // Set initial font size
+    updateFontSize();
+
+    // Listen for resize
+    window.addEventListener("resize", () => {
+      // Debounce resize events
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+      resizeTimeoutRef.current = setTimeout(updateFontSize, 150);
+    });
+
+    return () => {
+      window.removeEventListener("resize", updateFontSize);
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+    };
+  }, [calculateFontSize, containerId, sendTerminalResize]);
 
   useEffect(() => {
     (async () => {
@@ -43,7 +98,7 @@ export default function TerminalPane({
       const XTerm = (await import("xterm")).Terminal;
       const xterm = new XTerm({
         cursorBlink: true,
-        fontSize: 14,
+        fontSize: fontSize,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: {
           background: "#1a1b26",
@@ -161,6 +216,7 @@ export default function TerminalPane({
     subscribeTerminal,
     sendTerminalInput,
     sendTerminalResize,
+    fontSize,
   ]);
 
   // Refit terminal when container is resized
