@@ -1,6 +1,6 @@
 # Dockerflare
 
-A modern, web-based Docker container orchestration and management platform designed to simplify container operations across multiple Docker hosts through a unified, user-friendly interface powered by Cloudflare WARP.
+A modern, web-based Docker container orchestration and management platform powered by Cloudflare WARP, designed to simplify container operations across multiple Docker hosts through a unified, user-friendly interface.
 
 ![Dockerflare Dashboard](public/banner.png)
 
