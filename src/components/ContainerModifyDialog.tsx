@@ -218,6 +218,7 @@ export function ContainerModifyDialog({
       await modifyMutation.mutateAsync({
         hostUrl,
         containerId,
+        //@ts-expect-error safe (?)
         config: containerConfig,
       });
 

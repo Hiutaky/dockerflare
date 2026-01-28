@@ -10,7 +10,8 @@
     "lint:fix": "eslint --fix",
     "prettier:check": "bunx prettier . --check",
     "prettier:fix": "bunx prettier . --write",
-    "prepare": "husky"
+    "prepare": "husky",
+    "tsc:check": "tsc --noEmit"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

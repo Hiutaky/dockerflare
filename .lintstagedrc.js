@@ -6,7 +6,12 @@ const buildEslintCommand = (filenames) =>
     .join(" ")}`;
 
 const buildPrettierCommand = (filenames) => `prettier . --check`;
+const buildTscCommand = () => `bun tsc:check`;
 
 export default {
-  "*.{js,jsx,ts,tsx}": [buildEslintCommand, buildPrettierCommand],
+  "*.{js,jsx,ts,tsx}": [
+    buildEslintCommand,
+    buildPrettierCommand,
+    buildTscCommand,
+  ],
 };

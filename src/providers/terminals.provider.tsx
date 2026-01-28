@@ -1,6 +1,6 @@
-import { TerminalInstance } from "@/types";
 import React, { createContext, ReactNode, useContext, useState } from "react";
 import { useDocker } from "./docker.provider";
+import { TerminalInstance } from "@/types";
 
 type TerminalsMap = Map<string, TerminalInstance>;
 
