@@ -10,14 +10,12 @@ export default async function DocsPage() {
     // Custom components can be added here
   };
   return (
-    <div className="prose prose-lg dark:prose-invert max-w-none">
-      <MDXRemote
-        source={content}
-        components={components}
-        options={{
-          mdxOptions,
-        }}
-      />
-    </div>
+    <MDXRemote
+      source={content}
+      components={components}
+      options={{
+        mdxOptions,
+      }}
+    />
   );
 }

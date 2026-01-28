@@ -4,7 +4,14 @@
  */
 
 import type * as Dockerode from "dockerode";
-import { NormalizedContainer, NormalizedImage } from "@/types";
+import {
+  NormalizedContainer,
+  NormalizedImage,
+  NormalizedVolume,
+  NormalizedNetwork,
+  InspectedVolume,
+  InspectedNetwork,
+} from "@/types";
 
 const DOCKER_PORT = 2375;
 
@@ -53,6 +60,49 @@ function normalizeImage(
     size: image.Size,
     virtualSize: image.VirtualSize,
     labels: image.Labels,
+    host,
+  };
+}
+
+/**
+ * Normalize Docker API volume to application format
+ */
+function normalizeVolume(
+  volume: InspectedVolume,
+  host: string,
+): NormalizedVolume {
+  console.log(volume);
+
+  return {
+    name: volume.Name,
+    driver: volume.Driver,
+    mountpoint: volume.Mountpoint,
+    createdAt: volume.CreatedAt,
+    labels: volume.Labels || {},
+    options: volume.Options || {},
+    scope: volume.Scope || "local",
+    host,
+  };
+}
+
+/**
+ * Normalize Docker API network to application format
+ */
+function normalizeNetwork(
+  network: InspectedNetwork,
+  host: string,
+): NormalizedNetwork {
+  return {
+    id: network.Id,
+    name: network.Name,
+    driver: network.Driver,
+    scope: network.Scope,
+    createdAt: network.Created,
+    internal: network.Internal,
+    attachable: network.Attachable,
+    ingress: network.Ingress,
+    labels: network.Labels || {},
+    options: network.Options || {},
     host,
   };
 }
@@ -271,4 +321,181 @@ export async function removeImage(
       `Failed to remove image ${imageId}: ${response.statusText}`,
     );
   }
+}
+
+/**
+ * List all volumes
+ */
+export async function listVolumes(host: string): Promise<NormalizedVolume[]> {
+  const url = buildDockerUrl(host, "/volumes");
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to list volumes: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const volumes: InspectedVolume[] = data.Volumes || [];
+  return volumes.map((vol) => normalizeVolume(vol, host));
+}
+
+/**
+ * Create a volume
+ */
+export async function createVolume(
+  host: string,
+  volumeName: string,
+  options?: { driver?: string; labels?: Record<string, string> },
+): Promise<NormalizedVolume> {
+  const url = buildDockerUrl(host, "/volumes/create");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      Name: volumeName,
+      Driver: options?.driver || "local",
+      Labels: options?.labels,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to create volume ${volumeName}: ${response.statusText}`,
+    );
+  }
+
+  const volume = await response.json();
+  return normalizeVolume(volume, host);
+}
+
+/**
+ * Remove a volume
+ */
+export async function removeVolume(
+  host: string,
+  volumeName: string,
+): Promise<void> {
+  const url = buildDockerUrl(host, `/volumes/${volumeName}`);
+  const response = await fetch(url, { method: "DELETE" });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to remove volume ${volumeName}: ${response.statusText}`,
+    );
+  }
+}
+
+/**
+ * Inspect a volume
+ */
+export async function inspectVolume(
+  host: string,
+  volumeName: string,
+): Promise<NormalizedVolume> {
+  const url = buildDockerUrl(host, `/volumes/${volumeName}`);
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to inspect volume ${volumeName}: ${response.statusText}`,
+    );
+  }
+
+  const volume = await response.json();
+  return normalizeVolume(volume, host);
+}
+
+/**
+ * List all networks
+ */
+export async function listNetworks(host: string): Promise<NormalizedNetwork[]> {
+  const url = buildDockerUrl(host, "/networks");
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to list networks: ${response.statusText}`);
+  }
+
+  const networks: InspectedNetwork[] = await response.json();
+  return networks.map((net) => normalizeNetwork(net, host));
+}
+
+/**
+ * Create a network
+ */
+export async function createNetwork(
+  host: string,
+  networkName: string,
+  options?: {
+    driver?: string;
+    options?: Record<string, string>;
+    labels?: Record<string, string>;
+    internal?: boolean;
+    attachable?: boolean;
+  },
+): Promise<NormalizedNetwork> {
+  const url = buildDockerUrl(host, "/networks/create");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      Name: networkName,
+      Driver: options?.driver || "bridge",
+      Options: options?.options,
+      Labels: options?.labels,
+      Internal: options?.internal,
+      Attachable: options?.attachable,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to create network ${networkName}: ${response.statusText}`,
+    );
+  }
+
+  const data = await response.json();
+  // Docker API returns the network ID, inspect it to get full details
+  return inspectNetwork(host, data.Id);
+}
+
+/**
+ * Remove a network
+ */
+export async function removeNetwork(
+  host: string,
+  networkId: string,
+): Promise<void> {
+  const url = buildDockerUrl(host, `/networks/${networkId}`);
+  const response = await fetch(url, { method: "DELETE" });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to remove network ${networkId}: ${response.statusText}`,
+    );
+  }
+}
+
+/**
+ * Inspect a network
+ */
+export async function inspectNetwork(
+  host: string,
+  networkId: string,
+): Promise<NormalizedNetwork> {
+  const url = buildDockerUrl(host, `/networks/${networkId}`);
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to inspect network ${networkId}: ${response.statusText}`,
+    );
+  }
+
+  const network = await response.json();
+  return normalizeNetwork(network, host);
 }

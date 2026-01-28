@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
@@ -261,8 +262,8 @@ export default function HostsPage() {
           </div>
 
           {!hosts.length ? (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <div className="animate-pulse">Loading hosts...</div>
+            <div className="border border-border rounded-md">
+              <TableSkeleton rows={8} columns={7} />
             </div>
           ) : filteredHosts.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">

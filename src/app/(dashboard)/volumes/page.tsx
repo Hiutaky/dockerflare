@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,53 +35,55 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   MoreHorizontal,
-  Download,
+  Plus,
   Trash2,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type SortColumn = "name" | "size" | "created" | "host";
+type SortColumn = "name" | "driver" | "createdAt" | "host";
 type SortDirection = "asc" | "desc";
 
-export default function ImagesPage() {
-  const [pullImageName, setPullImageName] = useState("");
+export default function VolumesPage() {
+  const [createVolumeName, setCreateVolumeName] = useState("");
   const [selectedHost, setSelectedHost] = useState("");
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [selectedVolumes, setSelectedVolumes] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Get all hosts
   const { data: hosts, isLoading: hostsLoading } =
     trpc.docker.getHosts.useQuery();
   const onlineHosts = hosts?.filter((h) => h.status === "Online") || [];
 
-  // Get images for selected host or all images
+  // Get volumes for selected host or all volumes
   const {
-    data: images,
-    isLoading: imagesLoading,
+    data: volumes,
+    isLoading: volumesLoading,
     refetch,
-  } = trpc.docker.getAllImages.useQuery();
+  } = trpc.docker.getAllVolumes.useQuery();
 
-  // Sort images
-  const sortedImages = images
-    ? [...images].sort((a, b) => {
+  // Sort volumes
+  const sortedVolumes = volumes
+    ? [...volumes].sort((a, b) => {
         let aValue: string | number;
         let bValue: string | number;
 
         switch (sortColumn) {
           case "name":
-            aValue = a.repoTags[0] || "";
-            bValue = b.repoTags[0] || "";
+            aValue = a.name;
+            bValue = b.name;
             break;
-          case "size":
-            aValue = a.size;
-            bValue = b.size;
+          case "driver":
+            aValue = a.driver;
+            bValue = b.driver;
             break;
-          case "created":
-            aValue = a.created;
-            bValue = b.created;
+          case "createdAt":
+            aValue = a.createdAt || "";
+            bValue = b.createdAt || "";
             break;
           case "host":
             aValue = a.host;
@@ -106,85 +108,86 @@ export default function ImagesPage() {
     }
   };
 
-  const pullImageMutation = trpc.docker.pullImage.useMutation();
-  const removeImageMutation = trpc.docker.removeImage.useMutation();
+  const createVolumeMutation = trpc.docker.createVolume.useMutation();
+  const removeVolumeMutation = trpc.docker.removeVolume.useMutation();
 
-  const handlePullImage = async () => {
-    if (!selectedHost || !pullImageName.trim()) {
-      toast.error("Please select a host and enter an image name");
+  const handleCreateVolume = async () => {
+    if (!selectedHost || !createVolumeName.trim()) {
+      toast.error("Please select a host and enter a volume name");
       return;
     }
 
     try {
-      await pullImageMutation.mutateAsync({
+      await createVolumeMutation.mutateAsync({
         hostUrl: selectedHost,
-        imageName: pullImageName.trim(),
+        name: createVolumeName.trim(),
+        driver: "local",
       });
-      toast.success(`Pulling image ${pullImageName}`);
-      setPullImageName("");
+      toast.success(`Volume ${createVolumeName} created successfully`);
+      setCreateVolumeName("");
       refetch();
     } catch (error: unknown) {
-      toast.error(`Failed to pull image: ${(error as Error).message}`);
+      toast.error(`Failed to create volume: ${(error as Error).message}`);
     }
   };
 
-  const handleRemoveImage = async (hostUrl: string, imageId: string) => {
+  const handleRemoveVolume = async (hostUrl: string, volumeName: string) => {
     try {
-      await removeImageMutation.mutateAsync({
+      await removeVolumeMutation.mutateAsync({
         hostUrl,
-        imageId,
+        volumeName,
       });
-      toast.success("Image removed successfully");
+      toast.success("Volume removed successfully");
       refetch();
     } catch (error: unknown) {
-      toast.error(`Failed to remove image: ${(error as Error).message}`);
+      toast.error(`Failed to remove volume: ${(error as Error).message}`);
     }
   };
 
   // Bulk selection handlers
-  const handleSelectImage = (imageId: string, checked: boolean) => {
-    const newSelected = new Set(selectedImages);
+  const handleSelectVolume = (volumeId: string, checked: boolean) => {
+    const newSelected = new Set(selectedVolumes);
     if (checked) {
-      newSelected.add(imageId);
+      newSelected.add(volumeId);
     } else {
-      newSelected.delete(imageId);
+      newSelected.delete(volumeId);
     }
-    setSelectedImages(newSelected);
+    setSelectedVolumes(newSelected);
   };
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked && sortedImages) {
-      setSelectedImages(
-        new Set(sortedImages.map((img) => `${img.host}-${img.id}`)),
+    if (checked && sortedVolumes) {
+      setSelectedVolumes(
+        new Set(sortedVolumes.map((vol) => `${vol.host}-${vol.name}`)),
       );
     } else {
-      setSelectedImages(new Set());
+      setSelectedVolumes(new Set());
     }
   };
 
   const handleBulkRemove = async () => {
-    if (selectedImages.size === 0) {
-      toast.error("No images selected");
+    if (selectedVolumes.size === 0) {
+      toast.error("No volumes selected");
       return;
     }
 
     try {
-      // Group selected images by host
-      const imagesByHost: { [hostUrl: string]: string[] } = {};
+      // Group selected volumes by host
+      const volumesByHost: { [hostUrl: string]: string[] } = {};
 
-      selectedImages.forEach((selectedId) => {
-        const [hostUrl, ...imageIdParts] = selectedId.split("-");
-        const imageId = imageIdParts.join("-");
-        if (!imagesByHost[hostUrl]) imagesByHost[hostUrl] = [];
-        imagesByHost[hostUrl].push(imageId);
+      selectedVolumes.forEach((selectedId) => {
+        const [hostUrl, ...volumeNameParts] = selectedId.split("-");
+        const volumeName = volumeNameParts.join("-");
+        if (!volumesByHost[hostUrl]) volumesByHost[hostUrl] = [];
+        volumesByHost[hostUrl].push(volumeName);
       });
 
-      // Remove images from each host
-      const removePromises = Object.entries(imagesByHost).map(
-        async ([hostUrl, imageIds]) => {
+      // Remove volumes from each host
+      const removePromises = Object.entries(volumesByHost).map(
+        async ([hostUrl, volumeNames]) => {
           return Promise.all(
-            imageIds.map((imageId) =>
-              removeImageMutation.mutateAsync({ hostUrl, imageId }),
+            volumeNames.map((volumeName) =>
+              removeVolumeMutation.mutateAsync({ hostUrl, volumeName }),
             ),
           );
         },
@@ -192,24 +195,17 @@ export default function ImagesPage() {
 
       await Promise.all(removePromises);
 
-      toast.success(`Removed ${selectedImages.size} images`);
-      setSelectedImages(new Set());
+      toast.success(`Removed ${selectedVolumes.size} volumes`);
+      setSelectedVolumes(new Set());
       refetch();
     } catch (error: unknown) {
-      toast.error(`Failed to remove images: ${(error as Error).message}`);
+      toast.error(`Failed to remove volumes: ${(error as Error).message}`);
     }
   };
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  };
-
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString();
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Unknown";
+    return new Date(dateString).toLocaleDateString();
   };
 
   if (hostsLoading) {
@@ -219,7 +215,7 @@ export default function ImagesPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Docker Images</h1>
+        <h1 className="text-2xl font-bold">Docker Volumes</h1>
         <div className="flex items-center space-x-2">
           <select
             className="px-3 py-2 border border-border rounded-md bg-background"
@@ -234,35 +230,35 @@ export default function ImagesPage() {
             ))}
           </select>
           <Input
-            placeholder="e.g., nginx:alpine"
-            value={pullImageName}
-            onChange={(e) => setPullImageName(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handlePullImage()}
+            placeholder="Volume name"
+            value={createVolumeName}
+            onChange={(e) => setCreateVolumeName(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && handleCreateVolume()}
           />
           <Button
-            onClick={handlePullImage}
-            disabled={pullImageMutation.isPending}
+            onClick={handleCreateVolume}
+            disabled={createVolumeMutation.isPending}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Pull Image
+            <Plus className="h-4 w-4 mr-2" />
+            Create Volume
           </Button>
         </div>
       </div>
 
       {/* Bulk Actions Bar */}
-      {selectedImages.size > 0 && (
+      {selectedVolumes.size > 0 && (
         <div className="flex items-center justify-between p-4 bg-muted/50 border border-border rounded-md">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">
-              {selectedImages.size} image{selectedImages.size === 1 ? "" : "s"}{" "}
-              selected
+              {selectedVolumes.size} volume
+              {selectedVolumes.size === 1 ? "" : "s"} selected
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setSelectedImages(new Set())}
+              onClick={() => setSelectedVolumes(new Set())}
             >
               Clear Selection
             </Button>
@@ -271,19 +267,20 @@ export default function ImagesPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  disabled={removeImageMutation.isPending}
+                  disabled={removeVolumeMutation.isPending}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Remove Selected ({selectedImages.size})
+                  Remove Selected ({selectedVolumes.size})
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Remove Images</AlertDialogTitle>
+                  <AlertDialogTitle>Remove Volumes</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to remove {selectedImages.size} image
-                    {selectedImages.size === 1 ? "" : "s"}? This action cannot
-                    be undone.
+                    Are you sure you want to remove {selectedVolumes.size}{" "}
+                    volume
+                    {selectedVolumes.size === 1 ? "" : "s"}? This action cannot
+                    be undone and may affect containers using these volumes.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -298,13 +295,13 @@ export default function ImagesPage() {
         </div>
       )}
 
-      {imagesLoading ? (
+      {volumesLoading ? (
         <div className="border border-border rounded-md">
           <TableSkeleton rows={6} columns={8} />
         </div>
-      ) : !images || images.length === 0 ? (
+      ) : !volumes || volumes.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          No images found. Pull an image to get started.
+          No volumes found. Create a volume to get started.
         </div>
       ) : (
         <div className="border border-border rounded-md">
@@ -314,14 +311,14 @@ export default function ImagesPage() {
                 <TableHead className="w-[50px]">
                   <Checkbox
                     checked={
-                      sortedImages &&
-                      selectedImages.size === sortedImages.length &&
-                      sortedImages.length > 0
+                      sortedVolumes &&
+                      selectedVolumes.size === sortedVolumes.length &&
+                      sortedVolumes.length > 0
                     }
                     onCheckedChange={(checked) =>
                       handleSelectAll(checked as boolean)
                     }
-                    aria-label="Select all images"
+                    aria-label="Select all volumes"
                   />
                 </TableHead>
                 <TableHead
@@ -329,7 +326,7 @@ export default function ImagesPage() {
                   onClick={() => handleSort("name")}
                 >
                   <div className="flex items-center gap-1">
-                    Repository Tags
+                    Name
                     {sortColumn === "name" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4" />
@@ -340,11 +337,11 @@ export default function ImagesPage() {
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort("size")}
+                  onClick={() => handleSort("driver")}
                 >
                   <div className="flex items-center gap-1">
-                    Size
-                    {sortColumn === "size" &&
+                    Driver
+                    {sortColumn === "driver" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4" />
                       ) : (
@@ -352,14 +349,15 @@ export default function ImagesPage() {
                       ))}
                   </div>
                 </TableHead>
-                <TableHead>Virtual Size</TableHead>
+                <TableHead>Mount Point</TableHead>
+                <TableHead>Labels</TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort("created")}
+                  onClick={() => handleSort("createdAt")}
                 >
                   <div className="flex items-center gap-1">
                     Created
-                    {sortColumn === "created" &&
+                    {sortColumn === "createdAt" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4" />
                       ) : (
@@ -385,43 +383,48 @@ export default function ImagesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedImages.map((image) => (
-                <TableRow key={`${image.host}-${image.id}`}>
+              {sortedVolumes.map((volume) => (
+                <TableRow key={`${volume.host}-${volume.name}`}>
                   <TableCell>
                     <Checkbox
-                      checked={selectedImages.has(`${image.host}-${image.id}`)}
+                      checked={selectedVolumes.has(
+                        `${volume.host}-${volume.name}`,
+                      )}
                       onCheckedChange={(checked) =>
-                        handleSelectImage(
-                          `${image.host}-${image.id}`,
+                        handleSelectVolume(
+                          `${volume.host}-${volume.name}`,
                           checked as boolean,
                         )
                       }
-                      aria-label={`Select image ${image.repoTags[0] || "Unknown"}`}
+                      aria-label={`Select volume ${volume.name}`}
                     />
                   </TableCell>
+                  <TableCell className="font-mono">{volume.name}</TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {image.repoTags.map((tag: string, index: number) => (
-                        <div
-                          className="flex flex-col gap-2  items-start"
-                          key={index}
-                        >
-                          <Badge variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                          {image.labels?.["org.opencontainers.image.title"] && (
-                            <Badge>
-                              {image.labels?.["org.opencontainers.image.title"]}
-                            </Badge>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <Badge variant="secondary">{volume.driver}</Badge>
                   </TableCell>
-                  <TableCell>{formatBytes(image.size)}</TableCell>
-                  <TableCell>{formatBytes(image.virtualSize)}</TableCell>
-                  <TableCell>{formatDate(image.created)}</TableCell>
-                  <TableCell>{image.host}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {volume.mountpoint}
+                  </TableCell>
+                  <TableCell>
+                    {volume.labels && Object.keys(volume.labels).length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(volume.labels).map(([key, value]) => (
+                          <Badge
+                            key={key}
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {key}={value}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">None</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{formatDate(volume.createdAt)}</TableCell>
+                  <TableCell>{volume.host}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -438,23 +441,25 @@ export default function ImagesPage() {
                               onSelect={(e) => e.preventDefault()}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
-                              Remove Image
+                              Remove Volume
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Remove Image</AlertDialogTitle>
+                              <AlertDialogTitle>Remove Volume</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to remove the image &quot;
-                                {image.repoTags[0] || "Unknown"}&quot; from host{" "}
-                                {image.host}? This action cannot be undone.
+                                Are you sure you want to remove the volume
+                                &quot;
+                                {volume.name}&quot; from host {volume.host}?
+                                This action cannot be undone and may affect
+                                containers using this volume.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() =>
-                                  handleRemoveImage(image.host, image.id)
+                                  handleRemoveVolume(volume.host, volume.name)
                                 }
                               >
                                 Remove

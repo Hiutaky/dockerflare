@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,53 +35,59 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   MoreHorizontal,
-  Download,
+  Plus,
   Trash2,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type SortColumn = "name" | "size" | "created" | "host";
+type SortColumn = "name" | "driver" | "scope" | "createdAt" | "host";
 type SortDirection = "asc" | "desc";
 
-export default function ImagesPage() {
-  const [pullImageName, setPullImageName] = useState("");
+export default function NetworksPage() {
+  const [createNetworkName, setCreateNetworkName] = useState("");
   const [selectedHost, setSelectedHost] = useState("");
   const [sortColumn, setSortColumn] = useState<SortColumn>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [selectedNetworks, setSelectedNetworks] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Get all hosts
   const { data: hosts, isLoading: hostsLoading } =
     trpc.docker.getHosts.useQuery();
   const onlineHosts = hosts?.filter((h) => h.status === "Online") || [];
 
-  // Get images for selected host or all images
+  // Get networks for selected host or all networks
   const {
-    data: images,
-    isLoading: imagesLoading,
+    data: networks,
+    isLoading: networksLoading,
     refetch,
-  } = trpc.docker.getAllImages.useQuery();
+  } = trpc.docker.getAllNetworks.useQuery();
 
-  // Sort images
-  const sortedImages = images
-    ? [...images].sort((a, b) => {
-        let aValue: string | number;
-        let bValue: string | number;
+  // Sort networks
+  const sortedNetworks = networks
+    ? [...networks].sort((a, b) => {
+        let aValue: string | boolean | number;
+        let bValue: string | boolean | number;
 
         switch (sortColumn) {
           case "name":
-            aValue = a.repoTags[0] || "";
-            bValue = b.repoTags[0] || "";
+            aValue = a.name;
+            bValue = b.name;
             break;
-          case "size":
-            aValue = a.size;
-            bValue = b.size;
+          case "driver":
+            aValue = a.driver;
+            bValue = b.driver;
             break;
-          case "created":
-            aValue = a.created;
-            bValue = b.created;
+          case "scope":
+            aValue = a.scope;
+            bValue = b.scope;
+            break;
+          case "createdAt":
+            aValue = a.createdAt || "";
+            bValue = b.createdAt || "";
             break;
           case "host":
             aValue = a.host;
@@ -106,85 +112,89 @@ export default function ImagesPage() {
     }
   };
 
-  const pullImageMutation = trpc.docker.pullImage.useMutation();
-  const removeImageMutation = trpc.docker.removeImage.useMutation();
+  const createNetworkMutation = trpc.docker.createNetwork.useMutation();
+  const removeNetworkMutation = trpc.docker.removeNetwork.useMutation();
 
-  const handlePullImage = async () => {
-    if (!selectedHost || !pullImageName.trim()) {
-      toast.error("Please select a host and enter an image name");
+  const handleCreateNetwork = async () => {
+    if (!selectedHost || !createNetworkName.trim()) {
+      toast.error("Please select a host and enter a network name");
       return;
     }
 
     try {
-      await pullImageMutation.mutateAsync({
+      await createNetworkMutation.mutateAsync({
         hostUrl: selectedHost,
-        imageName: pullImageName.trim(),
+        name: createNetworkName.trim(),
+        driver: "bridge",
+        internal: false,
+        attachable: true,
+        labels: {},
+        options: {},
       });
-      toast.success(`Pulling image ${pullImageName}`);
-      setPullImageName("");
+      toast.success(`Network ${createNetworkName} created successfully`);
+      setCreateNetworkName("");
       refetch();
     } catch (error: unknown) {
-      toast.error(`Failed to pull image: ${(error as Error).message}`);
+      toast.error(`Failed to create network: ${(error as Error).message}`);
     }
   };
 
-  const handleRemoveImage = async (hostUrl: string, imageId: string) => {
+  const handleRemoveNetwork = async (hostUrl: string, networkId: string) => {
     try {
-      await removeImageMutation.mutateAsync({
+      await removeNetworkMutation.mutateAsync({
         hostUrl,
-        imageId,
+        networkId,
       });
-      toast.success("Image removed successfully");
+      toast.success("Network removed successfully");
       refetch();
     } catch (error: unknown) {
-      toast.error(`Failed to remove image: ${(error as Error).message}`);
+      toast.error(`Failed to remove network: ${(error as Error).message}`);
     }
   };
 
   // Bulk selection handlers
-  const handleSelectImage = (imageId: string, checked: boolean) => {
-    const newSelected = new Set(selectedImages);
+  const handleSelectNetwork = (networkId: string, checked: boolean) => {
+    const newSelected = new Set(selectedNetworks);
     if (checked) {
-      newSelected.add(imageId);
+      newSelected.add(networkId);
     } else {
-      newSelected.delete(imageId);
+      newSelected.delete(networkId);
     }
-    setSelectedImages(newSelected);
+    setSelectedNetworks(newSelected);
   };
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked && sortedImages) {
-      setSelectedImages(
-        new Set(sortedImages.map((img) => `${img.host}-${img.id}`)),
+    if (checked && sortedNetworks) {
+      setSelectedNetworks(
+        new Set(sortedNetworks.map((net) => `${net.host}-${net.id}`)),
       );
     } else {
-      setSelectedImages(new Set());
+      setSelectedNetworks(new Set());
     }
   };
 
   const handleBulkRemove = async () => {
-    if (selectedImages.size === 0) {
-      toast.error("No images selected");
+    if (selectedNetworks.size === 0) {
+      toast.error("No networks selected");
       return;
     }
 
     try {
-      // Group selected images by host
-      const imagesByHost: { [hostUrl: string]: string[] } = {};
+      // Group selected networks by host
+      const networksByHost: { [hostUrl: string]: string[] } = {};
 
-      selectedImages.forEach((selectedId) => {
-        const [hostUrl, ...imageIdParts] = selectedId.split("-");
-        const imageId = imageIdParts.join("-");
-        if (!imagesByHost[hostUrl]) imagesByHost[hostUrl] = [];
-        imagesByHost[hostUrl].push(imageId);
+      selectedNetworks.forEach((selectedId) => {
+        const [hostUrl, networkId] = selectedId.split("-", 2);
+        if (!networksByHost[hostUrl]) networksByHost[hostUrl] = [];
+        networksByHost[hostUrl].push(networkId);
       });
 
-      // Remove images from each host
-      const removePromises = Object.entries(imagesByHost).map(
-        async ([hostUrl, imageIds]) => {
+      // Remove networks from each host
+      const removePromises = Object.entries(networksByHost).map(
+        async ([hostUrl, networkIds]) => {
           return Promise.all(
-            imageIds.map((imageId) =>
-              removeImageMutation.mutateAsync({ hostUrl, imageId }),
+            networkIds.map((networkId) =>
+              removeNetworkMutation.mutateAsync({ hostUrl, networkId }),
             ),
           );
         },
@@ -192,24 +202,17 @@ export default function ImagesPage() {
 
       await Promise.all(removePromises);
 
-      toast.success(`Removed ${selectedImages.size} images`);
-      setSelectedImages(new Set());
+      toast.success(`Removed ${selectedNetworks.size} networks`);
+      setSelectedNetworks(new Set());
       refetch();
     } catch (error: unknown) {
-      toast.error(`Failed to remove images: ${(error as Error).message}`);
+      toast.error(`Failed to remove networks: ${(error as Error).message}`);
     }
   };
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  };
-
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString();
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Unknown";
+    return new Date(dateString).toLocaleDateString();
   };
 
   if (hostsLoading) {
@@ -219,7 +222,7 @@ export default function ImagesPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Docker Images</h1>
+        <h1 className="text-2xl font-bold">Docker Networks</h1>
         <div className="flex items-center space-x-2">
           <select
             className="px-3 py-2 border border-border rounded-md bg-background"
@@ -234,35 +237,35 @@ export default function ImagesPage() {
             ))}
           </select>
           <Input
-            placeholder="e.g., nginx:alpine"
-            value={pullImageName}
-            onChange={(e) => setPullImageName(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handlePullImage()}
+            placeholder="Network name"
+            value={createNetworkName}
+            onChange={(e) => setCreateNetworkName(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && handleCreateNetwork()}
           />
           <Button
-            onClick={handlePullImage}
-            disabled={pullImageMutation.isPending}
+            onClick={handleCreateNetwork}
+            disabled={createNetworkMutation.isPending}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Pull Image
+            <Plus className="h-4 w-4 mr-2" />
+            Create Network
           </Button>
         </div>
       </div>
 
       {/* Bulk Actions Bar */}
-      {selectedImages.size > 0 && (
+      {selectedNetworks.size > 0 && (
         <div className="flex items-center justify-between p-4 bg-muted/50 border border-border rounded-md">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">
-              {selectedImages.size} image{selectedImages.size === 1 ? "" : "s"}{" "}
-              selected
+              {selectedNetworks.size} network
+              {selectedNetworks.size === 1 ? "" : "s"} selected
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setSelectedImages(new Set())}
+              onClick={() => setSelectedNetworks(new Set())}
             >
               Clear Selection
             </Button>
@@ -271,19 +274,20 @@ export default function ImagesPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  disabled={removeImageMutation.isPending}
+                  disabled={removeNetworkMutation.isPending}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Remove Selected ({selectedImages.size})
+                  Remove Selected ({selectedNetworks.size})
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Remove Images</AlertDialogTitle>
+                  <AlertDialogTitle>Remove Networks</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to remove {selectedImages.size} image
-                    {selectedImages.size === 1 ? "" : "s"}? This action cannot
-                    be undone.
+                    Are you sure you want to remove {selectedNetworks.size}{" "}
+                    network
+                    {selectedNetworks.size === 1 ? "" : "s"}? This action cannot
+                    be undone and may affect containers using these networks.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -298,13 +302,13 @@ export default function ImagesPage() {
         </div>
       )}
 
-      {imagesLoading ? (
+      {networksLoading ? (
         <div className="border border-border rounded-md">
-          <TableSkeleton rows={6} columns={8} />
+          <TableSkeleton rows={6} columns={9} />
         </div>
-      ) : !images || images.length === 0 ? (
+      ) : !networks || networks.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          No images found. Pull an image to get started.
+          No networks found. Create a network to get started.
         </div>
       ) : (
         <div className="border border-border rounded-md">
@@ -314,14 +318,14 @@ export default function ImagesPage() {
                 <TableHead className="w-[50px]">
                   <Checkbox
                     checked={
-                      sortedImages &&
-                      selectedImages.size === sortedImages.length &&
-                      sortedImages.length > 0
+                      sortedNetworks &&
+                      selectedNetworks.size === sortedNetworks.length &&
+                      sortedNetworks.length > 0
                     }
                     onCheckedChange={(checked) =>
                       handleSelectAll(checked as boolean)
                     }
-                    aria-label="Select all images"
+                    aria-label="Select all networks"
                   />
                 </TableHead>
                 <TableHead
@@ -329,7 +333,7 @@ export default function ImagesPage() {
                   onClick={() => handleSort("name")}
                 >
                   <div className="flex items-center gap-1">
-                    Repository Tags
+                    Name
                     {sortColumn === "name" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4" />
@@ -340,11 +344,11 @@ export default function ImagesPage() {
                 </TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort("size")}
+                  onClick={() => handleSort("driver")}
                 >
                   <div className="flex items-center gap-1">
-                    Size
-                    {sortColumn === "size" &&
+                    Driver
+                    {sortColumn === "driver" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4" />
                       ) : (
@@ -352,14 +356,30 @@ export default function ImagesPage() {
                       ))}
                   </div>
                 </TableHead>
-                <TableHead>Virtual Size</TableHead>
                 <TableHead
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort("created")}
+                  onClick={() => handleSort("scope")}
+                >
+                  <div className="flex items-center gap-1">
+                    Scope
+                    {sortColumn === "scope" &&
+                      (sortDirection === "asc" ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      ))}
+                  </div>
+                </TableHead>
+                <TableHead>Internal</TableHead>
+                <TableHead>Attachable</TableHead>
+                <TableHead>Labels</TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort("createdAt")}
                 >
                   <div className="flex items-center gap-1">
                     Created
-                    {sortColumn === "created" &&
+                    {sortColumn === "createdAt" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4" />
                       ) : (
@@ -385,43 +405,63 @@ export default function ImagesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedImages.map((image) => (
-                <TableRow key={`${image.host}-${image.id}`}>
+              {sortedNetworks.map((network) => (
+                <TableRow key={`${network.host}-${network.id}`}>
                   <TableCell>
                     <Checkbox
-                      checked={selectedImages.has(`${image.host}-${image.id}`)}
+                      checked={selectedNetworks.has(
+                        `${network.host}-${network.id}`,
+                      )}
                       onCheckedChange={(checked) =>
-                        handleSelectImage(
-                          `${image.host}-${image.id}`,
+                        handleSelectNetwork(
+                          `${network.host}-${network.id}`,
                           checked as boolean,
                         )
                       }
-                      aria-label={`Select image ${image.repoTags[0] || "Unknown"}`}
+                      aria-label={`Select network ${network.name}`}
                     />
                   </TableCell>
+                  <TableCell className="font-mono">{network.name}</TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {image.repoTags.map((tag: string, index: number) => (
-                        <div
-                          className="flex flex-col gap-2  items-start"
-                          key={index}
-                        >
-                          <Badge variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                          {image.labels?.["org.opencontainers.image.title"] && (
-                            <Badge>
-                              {image.labels?.["org.opencontainers.image.title"]}
-                            </Badge>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <Badge variant="secondary">{network.driver}</Badge>
                   </TableCell>
-                  <TableCell>{formatBytes(image.size)}</TableCell>
-                  <TableCell>{formatBytes(image.virtualSize)}</TableCell>
-                  <TableCell>{formatDate(image.created)}</TableCell>
-                  <TableCell>{image.host}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{network.scope}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {network.internal ? (
+                      <Badge variant="secondary">Yes</Badge>
+                    ) : (
+                      <Badge variant="outline">No</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {network.attachable ? (
+                      <Badge variant="secondary">Yes</Badge>
+                    ) : (
+                      <Badge variant="outline">No</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {network.labels &&
+                    Object.keys(network.labels).length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(network.labels).map(([key, value]) => (
+                          <Badge
+                            key={key}
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {key}={value}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">None</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{formatDate(network.createdAt)}</TableCell>
+                  <TableCell>{network.host}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -438,23 +478,27 @@ export default function ImagesPage() {
                               onSelect={(e) => e.preventDefault()}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
-                              Remove Image
+                              Remove Network
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Remove Image</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                Remove Network
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to remove the image &quot;
-                                {image.repoTags[0] || "Unknown"}&quot; from host{" "}
-                                {image.host}? This action cannot be undone.
+                                Are you sure you want to remove the network
+                                &quot;
+                                {network.name}&quot;? This action cannot be
+                                undone and may affect containers using this
+                                network.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() =>
-                                  handleRemoveImage(image.host, image.id)
+                                  handleRemoveNetwork(network.host, network.id)
                                 }
                               >
                                 Remove

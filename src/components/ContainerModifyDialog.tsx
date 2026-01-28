@@ -37,7 +37,6 @@ import {
   Shield,
   Tag,
 } from "lucide-react";
-import z from "zod";
 
 interface ContainerModifyDialogProps {
   open: boolean;

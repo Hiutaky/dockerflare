@@ -5,7 +5,7 @@
  * VSCode-style terminal manager with multiple terminals and split view
  */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -16,6 +16,14 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Terminal,
   Plus,
   X,
@@ -23,6 +31,8 @@ import {
   SplitSquareHorizontal,
   ChevronUp,
   ChevronDown,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import { useDocker } from "@/providers/docker.provider";
 import TerminalPane from "./TerminalPane";
@@ -35,10 +45,6 @@ export default function TerminalsManager() {
   >("single");
   const [isMobile, setIsMobile] = useState(false);
 
-  // New terminal creation state
-  const [selectedHost, setSelectedHost] = useState<string>("");
-  const [selectedContainer, setSelectedContainer] = useState<string>("");
-  // const [availableContainers, setAvailableContainers] = useState<NormalizedContainer[]>([]);
   const {
     terminals,
     closeTerminal,
@@ -48,6 +54,7 @@ export default function TerminalsManager() {
     open,
     createTerminal,
   } = useTerminals();
+  const [maximized, setMaximized] = useState(false);
   const { onlineHosts, getContainers } = useDocker();
 
   // Detect mobile screen size and force single layout
@@ -64,11 +71,6 @@ export default function TerminalsManager() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, [gridLayout]);
-
-  const availableContainers = useMemo(() => {
-    if (!selectedHost) return [];
-    return getContainers(selectedHost);
-  }, [selectedHost, getContainers]);
 
   // Get grid cells based on layout
   const getGridCells = (): TerminalGridCell[] => {
@@ -150,173 +152,175 @@ export default function TerminalsManager() {
                 <ChevronUp className="w-4 h-4" />
               )}
             </Button>
+            <div className="sm:hidden w-px h-6 bg-border" />
+            <div className="hidden sm:block w-px h-6 bg-border" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" className="gap-2" variant={"ghost"}>
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[280px]">
+                {onlineHosts.length === 0 && (
+                  <DropdownMenuLabel className="text-center text-muted-foreground">
+                    No hosts online
+                  </DropdownMenuLabel>
+                )}
+                {onlineHosts.map((host, hostIndex) => {
+                  const containers = getContainers(host.tunnelUrl).filter(
+                    (c) => c.state === "running",
+                  );
+                  return (
+                    <div key={host.id}>
+                      {hostIndex > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuLabel>
+                        {host.name}
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({host.tunnelUrl})
+                        </span>
+                      </DropdownMenuLabel>
+                      {containers.length === 0 ? (
+                        <DropdownMenuItem disabled>
+                          No running containers
+                        </DropdownMenuItem>
+                      ) : (
+                        containers.map((container) => (
+                          <DropdownMenuItem
+                            key={container.id}
+                            onClick={() =>
+                              createTerminal(host.tunnelUrl, container.id)
+                            }
+                            className="gap-2"
+                          >
+                            <Terminal className="w-3 h-3" />
+                            <span className="truncate">
+                              {container.names[0] ||
+                                container.id.substring(0, 12)}
+                            </span>
+                          </DropdownMenuItem>
+                        ))
+                      )}
+                    </div>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {open && (
               <>
-                {/* Mobile: Vertical layout, Desktop: Horizontal with separator */}
-                <div className="sm:hidden w-px h-6 bg-border" />
-                <div className="hidden sm:block w-px h-6 bg-border" />
-
                 {/* Controls Container - Stack vertically on mobile */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  {/* Host Selector */}
-                  <Select value={selectedHost} onValueChange={setSelectedHost}>
-                    <SelectTrigger className="w-full sm:w-[200px] h-8">
-                      <SelectValue placeholder="Select host..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {onlineHosts.length === 0 && (
-                        <SelectItem value="_none" disabled>
-                          No hosts online
-                        </SelectItem>
-                      )}
-                      {onlineHosts.map((host) => (
-                        <SelectItem key={host.id} value={host.tunnelUrl}>
-                          <span>{host.name}</span>
-                          <span className="text-xs">({host.tunnelUrl})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Container Selector */}
-                  <Select
-                    value={selectedContainer}
-                    onValueChange={setSelectedContainer}
-                    disabled={!selectedHost}
-                  >
-                    <SelectTrigger className="w-full sm:w-[200px] h-8">
-                      <SelectValue placeholder="Select container..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableContainers.length === 0 && (
-                        <SelectItem value="_none" disabled>
-                          No running containers
-                        </SelectItem>
-                      )}
-                      {availableContainers
-                        .filter((c) => c.state === "running")
-                        .map((container) => (
-                          <SelectItem key={container.id} value={container.id}>
-                            {container.names[0] ||
-                              container.id.substring(0, 12)}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* New Terminal Button */}
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      createTerminal(selectedHost, selectedContainer)
-                    }
-                    disabled={!selectedHost || !selectedContainer}
-                    className="gap-2 h-8 w-full sm:w-auto"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="sm:inline">New Terminal</span>
-                    <span className="sm:hidden">New</span>
-                  </Button>
+                  {/* New Terminal Dropdown */}
 
                   {terminals.size > 0 && (
                     <>
                       {/* Mobile: No separator needed in vertical layout */}
                       <div className="hidden sm:block w-px h-6 bg-border" />
 
-                      {/* Layout Buttons - Smaller and more compact on mobile */}
-                      <div className="flex gap-1 flex-wrap justify-center sm:justify-start">
-                        <Button
-                          size="sm"
-                          variant={
-                            gridLayout === "single" ? "default" : "ghost"
-                          }
-                          onClick={() => changeLayout("single")}
-                          className="h-8 w-8 p-0 flex-shrink-0"
-                          title="Single terminal"
-                        >
-                          <Maximize2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={gridLayout === "2x1" ? "default" : "ghost"}
-                          onClick={() => changeLayout("2x1")}
-                          className="h-8 w-8 p-0 flex-shrink-0"
-                          disabled={terminals.size < 2}
-                          title="Split horizontally"
-                        >
-                          <SplitSquareHorizontal className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={gridLayout === "1x2" ? "default" : "ghost"}
-                          onClick={() => changeLayout("1x2")}
-                          className="h-8 w-8 p-0 flex-shrink-0 hidden sm:flex"
-                          disabled={terminals.size < 2}
-                          title="Split vertically"
-                        >
-                          <SplitSquareHorizontal className="w-4 h-4 rotate-90" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={gridLayout === "2x2" ? "default" : "ghost"}
-                          onClick={() => changeLayout("2x2")}
-                          className="h-8 w-8 p-0 flex-shrink-0 hidden md:flex"
-                          disabled={terminals.size < 3}
-                          title="2x2 grid"
-                        >
-                          <span className="text-xs font-bold">2x2</span>
-                        </Button>
-                      </div>
+                      {/* Layout Dropdown */}
+                      <Select value={gridLayout} onValueChange={changeLayout}>
+                        <SelectTrigger className="w-full  h-8">
+                          <SelectValue placeholder="Layout" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">
+                            <div className="flex items-center gap-2">
+                              <Maximize2 className="w-4 h-4" />
+                              <span>Single</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="2x1" disabled={terminals.size < 2}>
+                            <div className="flex items-center gap-2">
+                              <SplitSquareHorizontal className="w-4 h-4" />
+                              <span>Horizontal Split</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem
+                            value="1x2"
+                            disabled={terminals.size < 2}
+                            className="hidden sm:flex"
+                          >
+                            <div className="flex items-center gap-2">
+                              <SplitSquareHorizontal className="w-4 h-4 rotate-90" />
+                              <span>Vertical Split</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem
+                            value="2x2"
+                            disabled={terminals.size < 3}
+                            className="hidden md:flex"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold mr-1">
+                                2x2
+                              </span>
+                              <span>Grid</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </>
                   )}
                 </div>
               </>
             )}
           </div>
-
-          {open && gridLayout === "single" && terminals.size > 0 && (
-            <Tabs
-              value={activeTerminalId || undefined}
-              onValueChange={setActiveTerminalId}
-            >
-              <TabsList className="h-8">
-                {Array.from(terminals.values()).map((term) => (
-                  <div className=" flex flex-row  items-center" key={term.id}>
-                    <TabsTrigger
-                      key={term.id}
-                      value={term.id}
-                      className="h-7 gap-2"
-                    >
-                      <Terminal className="w-3 h-3" />
-                      <span className="text-xs">{term.containerName}</span>
-                    </TabsTrigger>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-4 w-4 p-0 hover:bg-destructive hover:text-white"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeTerminal(term.id);
-                      }}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
+          <div className=" flex flex-row gap-3 items-center">
+            {open && gridLayout === "single" && terminals.size > 0 && (
+              <>
+                <Tabs
+                  value={activeTerminalId || undefined}
+                  onValueChange={setActiveTerminalId}
+                >
+                  <TabsList className="h-8">
+                    {Array.from(terminals.values()).map((term) => (
+                      <div
+                        className=" flex flex-row  items-center"
+                        key={term.id}
+                      >
+                        <TabsTrigger
+                          key={term.id}
+                          value={term.id}
+                          className="h-7 gap-2"
+                        >
+                          <Terminal className="w-3 h-3" />
+                          <span className="text-xs">{term.containerName}</span>
+                        </TabsTrigger>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-4 w-4 p-0 hover:bg-destructive hover:text-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            closeTerminal(term.id);
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </TabsList>
+                </Tabs>
+                <div className="sm:hidden w-px h-6 bg-border" />
+                <div className="hidden sm:block w-px h-6 bg-border" />
+              </>
+            )}
+            {open && (
+              <Button
+                size={"icon"}
+                variant={"outline"}
+                onClick={() => setMaximized(!maximized)}
+              >
+                {maximized ? <Minimize /> : <Maximize />}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Terminal Container - All terminals rendered here, positioned by CSS */}
         {terminals.size > 0 && (
           <div
-            className={`relative p-2 bg-[#1a1b26] ${!open ? "hidden" : ""}`}
-            style={{
-              height: "clamp(300px, 40vh, 500px)",
-              maxHeight: "70vh",
-            }}
+            className={`relative p-2 bg-[#1a1b26] ${!open ? "hidden" : ""} ${maximized ? "h-[calc(100vh)]" : "h-[360px]"}`}
           >
             {/* Grid overlay for visualization */}
             <div
@@ -367,7 +371,7 @@ export default function TerminalsManager() {
                   className="border rounded overflow-hidden bg-[#1a1b26]"
                 >
                   {gridLayout !== "single" && visible && (
-                    <div className="absolute top-1 left-1 right-1 z-10 flex items-center justify-between bg-[#1a1b26]/90 px-2 py-1 rounded text-xs">
+                    <div className="top-1 left-1 right-1 z-10 flex items-center justify-between bg-[#1a1b26]/90 px-2 py-1 rounded text-xs">
                       <span className="text-gray-400">
                         {terminal.containerName}
                       </span>

@@ -31,10 +31,9 @@ PORT=3001 bun run dev
 
 ```bash
 # Check database file exists
-ls -la packages/application/dev.db
+ls -la dev.db
 
 # Reset database if corrupted
-cd packages/application
 bunx prisma migrate reset
 
 # Generate Prisma client
@@ -72,7 +71,7 @@ bunx prisma migrate reset
 
 ```bash
 # Check migration files exist
-ls packages/application/prisma/migrations/
+ls prisma/migrations/
 
 # Re-create initial migration
 bunx prisma migrate dev --name init
@@ -97,7 +96,7 @@ bunx prisma migrate dev --name init
 docker info
 
 # Check Docker Engine API is enabled
-curl -v http://localhost:2376/info
+curl -v http://localhost:2375/info
 
 # Test with Docker CLI
 docker ps
@@ -107,11 +106,11 @@ docker ps
 
 ```bash
 # Check Docker daemon port is accessible
-telnet localhost 2376
+telnet localhost 2375
 
 # If using remote host, test network
 ping <docker-host-ip>
-nc -zv <docker-host-ip> 2376
+nc -zv <docker-host-ip> 2375
 ```
 
 **Docker Engine API Configuration:**
@@ -122,7 +121,7 @@ cat /etc/docker/daemon.json
 
 # Should contain:
 {
-  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2376"]
+  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]
 }
 
 # Restart Docker if configuration changed
@@ -195,15 +194,6 @@ DEBUG=* bun run dev
 tail -f logs/server.log
 ```
 
-**Network Issues:**
-
-```bash
-# WebSocket URL should be accessible
-curl -I http://localhost:3000/api/docker/ws/test123?host=localhost
-
-# Check for proxy/firewall blocking WebSockets
-```
-
 ### Terminal Session Problems
 
 **Terminal Not Connecting:**
@@ -226,32 +216,6 @@ docker exec <container-id> which bash || which sh
 - Try alternative shells: `/bin/sh`, `/bin/ash`
 
 ## 📊 Performance Issues
-
-### Application Running Slowly
-
-**Memory Usage:**
-
-```bash
-# Check system resources
-free -h
-top -p $(pgrep -f "bun run")
-
-# Increase Node.js memory limit if needed
-NODE_OPTIONS="--max-old-space-size=4096" bun run dev
-```
-
-**Database Performance:**
-
-```bash
-# Check database file size
-ls -lh packages/application/dev.db
-
-# Vacuum database to reclaim space
-sqlite3 packages/application/dev.db "VACUUM;"
-
-# Check query performance in Prisma Studio
-bunx prisma studio
-```
 
 ### Host Status Updates Slow
 
@@ -301,11 +265,11 @@ docker run --privileged <image>
 
 ```bash
 # Check database file permissions
-ls -la packages/application/dev.db
+ls -la dev.db
 
 # Fix permissions
-chmod 664 packages/application/dev.db
-chown $USER:$USER packages/application/dev.db
+chmod 664 dev.db
+chown $USER:$USER dev.db
 ```
 
 **Log File Permissions:**
@@ -373,7 +337,7 @@ bun run build
 
 ```bash
 # Ensure all required env vars are set
-cat .env.local
+cat .env
 
 # Check build logs for missing variables
 bun run build 2>&1 | grep -i error
@@ -474,13 +438,6 @@ curl -X POST http://localhost:3000/api/trpc/docker.getHosts \
 curl -w "@curl-format.txt" -o /dev/null http://localhost:3000
 ```
 
-**WebSocket Debugging:**
-
-```bash
-# Use wscat for WebSocket testing
-wscat -c ws://localhost:3000/api/docker/ws/test123?host=localhost
-```
-
 ## 🆘 Getting Help
 
 ### Information to Provide
@@ -511,7 +468,7 @@ When reporting issues, include:
   ```
 
 - **Configuration Files:**
-  - `packages/application/prisma/schema.prisma`
+  - `prisma/schema.prisma`
   - `/etc/docker/daemon.json`
   - Environment variables (sanitized)
 

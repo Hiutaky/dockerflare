@@ -68,3 +68,32 @@ export const removeImageSchema = z.object({
   hostUrl: z.string(),
   imageId: z.string(),
 });
+export const getVolumesSchema = z.object({ hostUrl: z.string() });
+export const createVolumeSchema = z.object({
+  hostUrl: z.string(),
+  name: z.string(),
+  driver: z.string().optional(),
+  labels: z.record(z.string(), z.string()).optional(),
+});
+export const removeVolumeSchema = z.object({
+  hostUrl: z.string(),
+  volumeName: z.string(),
+});
+export const getNetworksSchema = z.object({ hostUrl: z.string() });
+export const createNetworkSchema = z.object({
+  hostUrl: z.string(),
+  name: z.string(),
+  driver: z.string().optional(),
+  options: z.record(z.string(), z.string()).optional(),
+  labels: z.record(z.string(), z.string()).optional(),
+  internal: z.boolean().optional(),
+  attachable: z.boolean().optional(),
+});
+export const removeNetworkSchema = z.object({
+  hostUrl: z.string(),
+  networkId: z.string(),
+});
+export const searchSchema = z.object({
+  query: z.string().min(1),
+  limit: z.number().optional().default(10),
+});

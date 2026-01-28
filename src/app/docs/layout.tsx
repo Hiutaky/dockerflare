@@ -9,9 +9,13 @@ export default async function DocsLayout({
   const navItems = await getDocsNavigation();
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)]">
+    <div className="grid lg:grid-cols-[auto_1fr] min-h-[calc(100vh-3.5rem)]">
       <DocsSidebar navItems={navItems} />
-      <main className="flex-1 p-6 overflow-auto">{children}</main>
+      <main className="flex-1 p-4 lg:p-6 max-h-[calc(100vh-3.5rem)] overflow-auto max-w-full">
+        <div className="prose prose-sm lg:prose-lg dark:prose-invert max-w-none">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

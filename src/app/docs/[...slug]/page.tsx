@@ -32,14 +32,12 @@ export default async function DocsSlugPage({ params }: Props) {
   };
 
   return (
-    <div className="prose prose-lg dark:prose-invert max-w-none">
-      <MDXRemote
-        source={content}
-        components={components}
-        options={{
-          mdxOptions,
-        }}
-      />
-    </div>
+    <MDXRemote
+      source={content}
+      components={components}
+      options={{
+        mdxOptions,
+      }}
+    />
   );
 }

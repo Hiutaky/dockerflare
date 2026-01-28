@@ -28,7 +28,7 @@ export default function Boot() {
           </div>
           <div className="flex-1 text-center">
             <span className="text-xs text-gray-400 font-mono">
-              Initializing LocalFlare
+              Initializing Dockerflare
             </span>
           </div>
         </div>

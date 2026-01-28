@@ -132,46 +132,6 @@ function createContainer(data: any) {
 }
 ```
 
-### State Management
-
-**React Query Patterns:**
-
-```typescript
-// ✅ Good: Optimistic updates
-const mutation = useMutation({
-  mutationFn: ({ containerId, action }) =>
-    api.performContainerAction({ containerId, action }),
-  onMutate: async ({ containerId, action }) => {
-    // Cancel any outgoing refetches
-    await queryClient.cancelQueries({ queryKey: ["containers"] });
-
-    // Snapshot previous value
-    const previousContainers = queryClient.getQueryData(["containers"]);
-
-    // Optimistically update UI
-    queryClient.setQueryData(["containers"], (old: Container[]) =>
-      old.map((container) =>
-        container.Id === containerId
-          ? { ...container, State: getUpdatedState(action) }
-          : container,
-      ),
-    );
-
-    return { previousContainers };
-  },
-  onError: (err, variables, context) => {
-    // Revert on error
-    if (context?.previousContainers) {
-      queryClient.setQueryData(["containers"], context.previousContainers);
-    }
-  },
-  onSettled: () => {
-    // Always refetch after mutation
-    queryClient.invalidateQueries({ queryKey: ["containers"] });
-  },
-});
-```
-
 ## 🎨 UI/UX Guidelines
 
 ### Component Design
@@ -287,74 +247,6 @@ const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
       ...ctx,
       user: ctx.user,
     },
-  });
-});
-```
-
-## 🧪 Testing Patterns
-
-### Component Testing
-
-```tsx
-// ✅ Good: Test user interactions and side effects
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-
-  return ({ children }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-};
-
-describe("ContainerActions", () => {
-  it("starts container on button click", async () => {
-    const mockMutate = vi.fn();
-    vi.mocked(useContainerStart).mockReturnValue({
-      mutate: mockMutate,
-      isLoading: false,
-    });
-
-    render(<ContainerActions containerId="test" />, {
-      wrapper: createWrapper(),
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /start/i }));
-
-    await waitFor(() => {
-      expect(mockMutate).toHaveBeenCalledWith({ containerId: "test" });
-    });
-  });
-});
-```
-
-### API Testing
-
-```typescript
-// ✅ Good: Test tRPC procedures
-import { createCaller } from "@/lib/trpc";
-import { appRouter } from "@/lib/routers";
-
-describe("Docker Router", () => {
-  it("gets containers successfully", async () => {
-    const caller = createCaller({ user: mockUser });
-    const containers = await caller.docker.getContainers({
-      hostUrl: "localhost:2376",
-    });
-
-    expect(containers).toBeDefined();
-    expect(Array.isArray(containers)).toBe(true);
-  });
-
-  it("validates input parameters", async () => {
-    const caller = createCaller({ user: mockUser });
-
-    await expect(caller.docker.getContainers({ hostUrl: "" })).rejects.toThrow(
-      "Invalid input",
-    );
   });
 });
 ```

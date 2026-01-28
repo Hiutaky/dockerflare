@@ -1,10 +1,9 @@
 import { router } from "../trpc";
 import { publicProcedure } from "../trpc";
-import { z } from "zod";
 import { getWARPDevices } from "../cloudflare";
 import * as DockerAPI from "../docker-client";
 import { hostStore } from "../host-store";
-import { NormalizedImage } from "@/types";
+import { NormalizedImage, NormalizedVolume, NormalizedNetwork } from "@/types";
 import {
   checkBulkHostStatusSchema,
   checkHostStatusSchema,
@@ -16,6 +15,13 @@ import {
   performContainerActionSchema,
   pullImageSchema,
   removeImageSchema,
+  getVolumesSchema,
+  createVolumeSchema,
+  removeVolumeSchema,
+  getNetworksSchema,
+  createNetworkSchema,
+  removeNetworkSchema,
+  searchSchema,
 } from "./models/docker.model";
 
 // Utility to check if Docker API is accessible
@@ -262,6 +268,51 @@ export const dockerRouter = router({
     };
   }),
 
+  // Get current user from Cloudflare WARP devices
+  getCurrentUser: publicProcedure.query(async ({ ctx }) => {
+    const devices = await getWARPDevices();
+
+    // Find devices that have user information
+    const devicesWithUsers = devices.filter((d) => d.user && d.user.email);
+
+    if (devicesWithUsers.length === 0) {
+      // Fallback user if no WARP devices have user info
+      return {
+        id: "anonymous",
+        email: "user@example.com",
+        name: "Dockerflare User",
+        role: "User",
+      };
+    }
+
+    // Use the first device with user info (could be enhanced to pick the "most recent" or "admin" device)
+    const primaryDevice = devicesWithUsers[0];
+    const cloudflareUser = primaryDevice.user!;
+
+    // Try to find or create user in local database
+    let localUser = await ctx.db.user.findUnique({
+      where: { email: cloudflareUser.email },
+    });
+
+    if (!localUser) {
+      // Create user in local database if doesn't exist
+      localUser = await ctx.db.user.create({
+        data: {
+          email: cloudflareUser.email,
+          name: `User ${cloudflareUser.email.split("@")[0]}`, // Default name from email
+          role: "User", // Default role
+        },
+      });
+    }
+
+    return {
+      id: localUser.id,
+      email: localUser.email,
+      name: localUser.name || `User ${localUser.email.split("@")[0]}`,
+      role: localUser.role,
+    };
+  }),
+
   // List images on specific host
   getImages: publicProcedure.input(getImagesSchema).query(async ({ input }) => {
     return await DockerAPI.listImages(input.hostUrl);
@@ -305,5 +356,274 @@ export const dockerRouter = router({
       }
     }
     return allImages;
+  }),
+
+  // List volumes on specific host
+  getVolumes: publicProcedure
+    .input(getVolumesSchema)
+    .query(async ({ input }) => {
+      return await DockerAPI.listVolumes(input.hostUrl);
+    }),
+
+  // Create a volume
+  createVolume: publicProcedure
+    .input(createVolumeSchema)
+    .mutation(async ({ input }) => {
+      const volume = await DockerAPI.createVolume(input.hostUrl, input.name, {
+        driver: input.driver,
+        labels: input.labels,
+      });
+      return { success: true, volume };
+    }),
+
+  // Remove a volume
+  removeVolume: publicProcedure
+    .input(removeVolumeSchema)
+    .mutation(async ({ input }) => {
+      await DockerAPI.removeVolume(input.hostUrl, input.volumeName);
+      return { success: true };
+    }),
+
+  // Get all volumes from all hosts
+  getAllVolumes: publicProcedure.query(async () => {
+    const devices = await getWARPDevices();
+    const allVolumes: NormalizedVolume[] = [];
+
+    for (const device of devices) {
+      const metadata = hostStore.get(device.id);
+      const isOnline = metadata?.status === "Online";
+
+      if (isOnline) {
+        try {
+          const volumes = await DockerAPI.listVolumes(device.metadata.ipv4);
+          allVolumes.push(...volumes);
+        } catch (error) {
+          console.error(
+            `Failed to get volumes for device ${device.name}:`,
+            error,
+          );
+        }
+      }
+    }
+    return allVolumes;
+  }),
+
+  // List networks on specific host
+  getNetworks: publicProcedure
+    .input(getNetworksSchema)
+    .query(async ({ input }) => {
+      return await DockerAPI.listNetworks(input.hostUrl);
+    }),
+
+  // Create a network
+  createNetwork: publicProcedure
+    .input(createNetworkSchema)
+    .mutation(async ({ input }) => {
+      const network = await DockerAPI.createNetwork(input.hostUrl, input.name, {
+        driver: input.driver,
+        options: input.options,
+        labels: input.labels,
+        internal: input.internal,
+        attachable: input.attachable,
+      });
+      return { success: true, network };
+    }),
+
+  // Remove a network
+  removeNetwork: publicProcedure
+    .input(removeNetworkSchema)
+    .mutation(async ({ input }) => {
+      await DockerAPI.removeNetwork(input.hostUrl, input.networkId);
+      return { success: true };
+    }),
+
+  // Get all networks from all hosts
+  getAllNetworks: publicProcedure.query(async () => {
+    const devices = await getWARPDevices();
+    const allNetworks: NormalizedNetwork[] = [];
+
+    for (const device of devices) {
+      const metadata = hostStore.get(device.id);
+      const isOnline = metadata?.status === "Online";
+
+      if (isOnline) {
+        try {
+          const networks = await DockerAPI.listNetworks(device.metadata.ipv4);
+          allNetworks.push(...networks);
+        } catch (error) {
+          console.error(
+            `Failed to get networks for device ${device.name}:`,
+            error,
+          );
+        }
+      }
+    }
+    return allNetworks;
+  }),
+
+  // Unified search across all entities
+  search: publicProcedure.input(searchSchema).query(async ({ input }) => {
+    const query = input.query.toLowerCase();
+    const limit = input.limit;
+    type NormalizedResult = {
+      id: string;
+      type: "host" | "container" | "image" | "volume" | "network";
+      name: string;
+      url: string;
+      category: "Hosts" | "Containers" | "Images" | "Volumes" | "Networks";
+      host?: string;
+    };
+    const results: NormalizedResult[] = [];
+
+    // Search hosts
+    const devices = await getWARPDevices();
+    const hostResults = devices
+      .filter(
+        (device) =>
+          device.name.toLowerCase().includes(query) ||
+          device.metadata.ipv4.includes(query),
+      )
+      .slice(0, limit)
+      .map(
+        (device) =>
+          ({
+            id: device.id,
+            type: "host",
+            name: device.name,
+            url: device.metadata.ipv4,
+            category: "Hosts",
+          }) satisfies NormalizedResult,
+      );
+
+    results.push(...hostResults);
+
+    // Search containers across all hosts
+    for (const device of devices) {
+      const metadata = hostStore.get(device.id);
+      const isOnline = metadata?.status === "Online";
+
+      if (isOnline) {
+        try {
+          const containers = await DockerAPI.listContainers(
+            device.metadata.ipv4,
+            true,
+          );
+          const containerResults = containers
+            .filter(
+              (container) =>
+                container.names.some((name) =>
+                  name.toLowerCase().includes(query),
+                ) || container.image.toLowerCase().includes(query),
+            )
+            .slice(0, limit)
+            .map(
+              (container) =>
+                ({
+                  id: container.id,
+                  type: "container",
+                  name: container.names[0],
+                  url: device.metadata.ipv4,
+                  category: "Containers",
+                  host: device.name,
+                }) satisfies NormalizedResult,
+            );
+          results.push(...containerResults);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    }
+
+    // Search images across all hosts
+    for (const device of devices) {
+      const metadata = hostStore.get(device.id);
+      const isOnline = metadata?.status === "Online";
+
+      if (isOnline) {
+        try {
+          const images = await DockerAPI.listImages(device.metadata.ipv4);
+          const imageResults = images
+            .filter((image) =>
+              image.repoTags?.some((tag) => tag.toLowerCase().includes(query)),
+            )
+            .slice(0, limit)
+            .map(
+              (image) =>
+                ({
+                  id: image.id,
+                  type: "image",
+                  name: image.repoTags[0] || "untagged",
+                  url: device.metadata.ipv4,
+                  category: "Images",
+                  host: device.name,
+                }) satisfies NormalizedResult,
+            );
+          results.push(...imageResults);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    }
+
+    // Search volumes across all hosts
+    for (const device of devices) {
+      const metadata = hostStore.get(device.id);
+      const isOnline = metadata?.status === "Online";
+
+      if (isOnline) {
+        try {
+          const volumes = await DockerAPI.listVolumes(device.metadata.ipv4);
+          const volumeResults = volumes
+            .filter((volume) => volume.name.toLowerCase().includes(query))
+            .slice(0, limit)
+            .map(
+              (volume) =>
+                ({
+                  id: volume.name,
+                  type: "volume",
+                  name: volume.name,
+                  url: device.metadata.ipv4,
+                  category: "Volumes",
+                  host: device.name,
+                }) satisfies NormalizedResult,
+            );
+          results.push(...volumeResults);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    }
+
+    // Search networks across all hosts
+    for (const device of devices) {
+      const metadata = hostStore.get(device.id);
+      const isOnline = metadata?.status === "Online";
+
+      if (isOnline) {
+        try {
+          const networks = await DockerAPI.listNetworks(device.metadata.ipv4);
+          const networkResults = networks
+            .filter((network) => network.name?.toLowerCase().includes(query))
+            .slice(0, limit)
+            .map(
+              (network) =>
+                ({
+                  id: network.id,
+                  type: "network",
+                  name: network.name,
+                  url: device.metadata.ipv4,
+                  category: "Networks",
+                  host: device.name,
+                }) satisfies NormalizedResult,
+            );
+          results.push(...networkResults);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    }
+
+    // Limit total results
+    return results.slice(0, limit);
   }),
 });

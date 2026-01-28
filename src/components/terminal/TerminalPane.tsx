@@ -137,7 +137,7 @@ export default function TerminalPane({
         "\x1b[1;36m╔════════════════════════════════════════════════════════╗\x1b[0m",
       );
       xterm.writeln(
-        "\x1b[1;36m║         Localflare Multi-Terminal Manager             ║\x1b[0m",
+        "\x1b[1;36m║         Dockerflare Multi-Terminal Manager             ║\x1b[0m",
       );
       xterm.writeln(
         "\x1b[1;36m╚════════════════════════════════════════════════════════╝\x1b[0m",

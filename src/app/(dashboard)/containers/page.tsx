@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CardGridSkeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   Play,
@@ -644,11 +645,8 @@ export default function ContainersPage() {
         </Card>
 
         {/* Container Grid */}
-        {containersLoading ? (
-          <div className="space-y-4 text-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
-            <p>Loading containers...</p>
-          </div>
+        {containersLoading || isLoading ? (
+          <CardGridSkeleton cards={9} />
         ) : filteredContainers.length === 0 ? (
           <div className="text-center flex flex-col gap-3 py-12 text-muted-foreground border-2 border-dashed rounded-lg">
             <Server className="w-12 h-12 mx-auto opacity-50" />

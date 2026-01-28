@@ -3,6 +3,11 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,6 +18,8 @@ import {
   Rocket,
   FileText,
   Image,
+  HardDrive,
+  Network,
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
@@ -42,6 +49,16 @@ const navItems = [
     title: "Images",
     href: "/images",
     icon: Image,
+  },
+  {
+    title: "Volumes",
+    href: "/volumes",
+    icon: HardDrive,
+  },
+  {
+    title: "Networks",
+    href: "/networks",
+    icon: Network,
   },
   {
     title: "Deploy",
@@ -78,7 +95,7 @@ function SidebarContent({
               const Icon = item.icon;
               const isActive = pathname === item.href;
 
-              return (
+              const button = (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -99,6 +116,17 @@ function SidebarContent({
                   </Button>
                 </Link>
               );
+
+              if (isCollapsed && !isMobile) {
+                return (
+                  <Tooltip key={item.href}>
+                    <TooltipTrigger asChild>{button}</TooltipTrigger>
+                    <TooltipContent>{item.title}</TooltipContent>
+                  </Tooltip>
+                );
+              }
+
+              return button;
             })}
           </nav>
         </div>

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useDocker } from "@/providers/docker.provider";
 import { trpc } from "@/lib/trpc-client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -37,6 +37,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { StatsCardSkeleton, ChartSkeleton } from "@/components/ui/skeleton";
 
 const COLORS = {
   running: "#10b981",
@@ -52,7 +53,10 @@ export default function DashboardPage() {
   const [autoRefreshEnabled] = useState(true);
 
   const totalHosts = hosts.length;
-  const onlineHosts = hosts.filter((h) => h.status === "Online").length;
+
+  const onlineHosts = useMemo(() => {
+    return hosts.filter((h) => h.status === "Online").length;
+  }, [hosts]);
 
   // Fetch aggregate stats
   const {
@@ -188,151 +192,166 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-border hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Hosts
-            </CardTitle>
-            <Server className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {isLoading ? "—" : totalHosts}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {onlineHosts} online
-            </p>
-          </CardContent>
-        </Card>
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="border-border hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Hosts
+              </CardTitle>
+              <Server className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{totalHosts}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {onlineHosts} online
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card className="border-border hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Containers
-            </CardTitle>
-            <Box className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {isLoading ? "—" : totalContainers}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across all hosts
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="border-border hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Containers
+              </CardTitle>
+              <Box className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{totalContainers}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Across all hosts
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card className="border-border hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Running
-            </CardTitle>
-            <Activity className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">
-              {isLoading ? "—" : runningContainers}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Active containers
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="border-border hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Running
+              </CardTitle>
+              <Activity className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">
+                {runningContainers}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Active containers
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card className="border-border hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Stopped
-            </CardTitle>
-            <Box className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {isLoading ? "—" : stoppedContainers + pausedContainers}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Inactive containers
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="border-border hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Stopped
+              </CardTitle>
+              <Box className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {stoppedContainers + pausedContainers}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Inactive containers
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Container Distribution Pie Chart */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle>Container Distribution</CardTitle>
-            <CardDescription>Status breakdown across all hosts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {totalContainers > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={containerDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name} ${percent ? (percent * 100).toFixed(0) : 0}%`
-                    }
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {containerDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend />
-                  <RechartsTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-                <div className="text-center">
-                  <Box className="mx-auto h-12 w-12 mb-3 opacity-20" />
-                  <p>No containers deployed yet</p>
+        {isLoading ? (
+          <ChartSkeleton />
+        ) : (
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle>Container Distribution</CardTitle>
+              <CardDescription>
+                Status breakdown across all hosts
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {totalContainers > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={containerDistribution}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) =>
+                        `${name} ${percent ? (percent * 100).toFixed(0) : 0}%`
+                      }
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {containerDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Legend />
+                    <RechartsTooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                  <div className="text-center">
+                    <Box className="mx-auto h-12 w-12 mb-3 opacity-20" />
+                    <p>No containers deployed yet</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Activity Timeline */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle>Container Activity</CardTitle>
-            <CardDescription>Container count over time</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {totalContainers > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={activityData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" />
-                  <YAxis />
-                  <RechartsTooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="containers"
-                    stroke="#10b981"
-                    fill="#10b98120"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-                <div className="text-center">
-                  <TrendingUp className="mx-auto h-12 w-12 mb-3 opacity-20" />
-                  <p>No activity data yet</p>
+        {isLoading ? (
+          <ChartSkeleton />
+        ) : (
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle>Container Activity</CardTitle>
+              <CardDescription>Container count over time</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {totalContainers > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={activityData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="time" />
+                    <YAxis />
+                    <RechartsTooltip />
+                    <Area
+                      type="monotone"
+                      dataKey="containers"
+                      stroke="#10b981"
+                      fill="#10b98120"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                  <div className="text-center">
+                    <TrendingUp className="mx-auto h-12 w-12 mb-3 opacity-20" />
+                    <p>No activity data yet</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Bottom Row: Recent Activity and Hosts */}
