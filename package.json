@@ -1,5 +1,5 @@
 {
-  "name": "@decentraflare/application",
+  "name": "dockerflare",
   "version": "0.1.0",
   "private": true,
   "scripts": {
