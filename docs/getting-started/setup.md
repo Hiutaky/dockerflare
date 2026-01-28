@@ -40,6 +40,7 @@ bunx prisma migrate dev --name init
 ### 3. Environment Configuration
 
 Create environment files as needed:
+
 ```bash
 cp .env.example .env
 ```

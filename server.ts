@@ -7,18 +7,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { parse } from "url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
-import Dockerode from "dockerode";
 import { Duplex } from "stream";
-import {
-  ClientMessage,
-  ContainerConnection,
-  ServerMessage,
-  Topics,
-} from "@/types";
-import { subscribeToLogs } from "@/lib/ws/topics/log";
-import { subscribeToStats } from "@/lib/ws/topics/stats";
-import { subscribeToTerminal } from "@/lib/ws/topics/terminal";
-import { deployComposeStack, deployContainer } from "@/lib/ws/topics/deploy";
 import { handleWebSocketRequest } from "@/lib/ws/handler";
 
 const dev = process.env.NODE_ENV !== "production";

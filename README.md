@@ -27,11 +27,13 @@ A modern, web-based Docker container orchestration and management platform desig
 ### System Requirements
 
 **Supported Platforms:**
+
 - Linux (Ubuntu 18.04+, CentOS 7+, Fedora 30+, Debian 10+)
 - macOS (10.15+)
 - Windows (10/11 with WSL2)
 
 **Recommended:**
+
 - Ubuntu 20.04 LTS or macOS 12+
 
 ### Software Dependencies
@@ -115,6 +117,7 @@ CLOUDFLARE_API_TOKEN="your_api_token"
 Enable Docker Engine API on your Docker hosts:
 
 **Linux:**
+
 ```bash
 # Option 1: Edit daemon.json
 sudo nano /etc/docker/daemon.json
