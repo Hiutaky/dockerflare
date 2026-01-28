@@ -29,9 +29,6 @@ bun install
 ### 2. Application Setup
 
 ```bash
-# Navigate to the main application
-cd packages/application
-
 # Install dependencies
 bun install
 
@@ -43,9 +40,11 @@ bunx prisma migrate dev --name init
 ### 3. Environment Configuration
 
 Create environment files as needed:
+```bash
+cp .env.example .env
+```
 
 ```bash
-# .env.local in packages/application/
 NODE_ENV=development
 PORT=3000
 DATABASE_URL="file:./dev.db"
