@@ -108,6 +108,8 @@ cp .env.example .env
 NODE_ENV=development
 PORT=3000
 DATABASE_URL="file:./dev.db"
+# Obtain here: https://dash.cloudflare.com/ > Manage Account > Token API
+# Needed Scopes: Cloudflare One Netowrks Read/Write
 CLOUDFLARE_ACCOUNT_ID="your_account_id"
 CLOUDFLARE_API_TOKEN="your_api_token"
 ```
