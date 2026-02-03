@@ -121,7 +121,6 @@ interface DockerState {
     action: "start" | "stop" | "restart" | "pause" | "unpause" | "remove",
   ) => Promise<boolean>;
   checkHostsStatus: () => Promise<void>;
-
   // Host management
   refreshHosts: () => Promise<void>;
   syncHosts: () => Promise<{ count: number; onlineCount: number }>;
@@ -230,9 +229,7 @@ const useDockerProvider = (): DockerState => {
   const cachedHosts = loadFromLocalStorage("dockerflare-hosts");
   const cachedContainers = loadFromLocalStorage("dockerflare-containers");
 
-  const [hosts, setHosts] = useState<RouterOutputs["docker"]["getHosts"]>(
-    cachedHosts || [],
-  );
+  const [hosts, setHosts] = useState<RouterOutputs["docker"]["getHosts"]>([]);
   const [containers, setContainers] = useState<
     Map<string, NormalizedContainer[]>
   >(new Map(cachedContainers || []));
@@ -277,7 +274,7 @@ const useDockerProvider = (): DockerState => {
         `[DOCKER] Creating new WebSocket connection for ${containerId}`,
       );
 
-      const wsUrl = `ws://localhost:3000/api/docker/ws/${containerId}?host=${encodeURIComponent(hostUrl)}`;
+      const wsUrl = `/api/docker/ws/${containerId}?host=${encodeURIComponent(hostUrl)}`;
       const ws = new WebSocket(wsUrl);
 
       connection = {
@@ -771,6 +768,9 @@ const useDockerProvider = (): DockerState => {
   /*                          Effects                                           */
   /* -------------------------------------------------------------------------- */
 
+  useEffect(() => {
+    if (!hosts.length) setHosts(cachedHosts);
+  }, [cachedHosts]);
   // Check hosts status on mount
   useEffect(() => {
     checkHostsStatus();
