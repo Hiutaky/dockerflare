@@ -11,8 +11,6 @@ export async function subscribeToStats(
   try {
     console.log(`[UNIFIED WS] Subscribing to stats for ${containerId}`);
 
-    console.log("connections", connection.subscriptions);
-
     const container = docker.getContainer(containerId);
     const statsStream = (await container.stats({ stream: true })) as Duplex;
 
@@ -48,7 +46,6 @@ export async function subscribeToStats(
                   rawStats.cpu_stats.online_cpus *
                   100
                 : 0;
-
             const stats = {
               cpu_percent: Math.round(cpuPercent * 100) / 100,
               memory_usage: rawStats.memory_stats?.usage || 0,

@@ -36,7 +36,7 @@ import {
   Container,
 } from "lucide-react";
 import { useDocker } from "@/providers/docker.provider";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, useMemo } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -45,7 +45,6 @@ export default function HostsPage() {
   const [selectedHosts, setSelectedHosts] = useState<string[]>([]);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
 
-  // Use Docker provider for all host management
   const {
     hosts,
     refreshHosts,
@@ -54,7 +53,6 @@ export default function HostsPage() {
     checkBulkHostStatus,
   } = useDocker();
 
-  // Auto-refresh every 60 seconds (#13)
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
@@ -69,12 +67,13 @@ export default function HostsPage() {
     };
   }, [isAutoRefreshing, refreshHosts]);
 
-  // Filter hosts based on search query (#11)
-  const filteredHosts = hosts.filter(
-    (host) =>
-      host.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      host.tunnelUrl.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredHosts = useMemo(() => {
+    return hosts.filter(
+      (host) =>
+        host.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        host.tunnelUrl.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [hosts, searchQuery]);
 
   async function handleSync() {
     try {
@@ -215,15 +214,14 @@ export default function HostsPage() {
           </Button>
         </div>
       </div>
-
       <Card className="border-border">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Discovered Hosts</CardTitle>
               <CardDescription>
-                Hosts synchronized from Cloudflare ({filteredHosts.length} of{" "}
-                {hosts.length})
+                Hosts synchronized from Cloudflare ({filteredHosts.length ?? 0}{" "}
+                of {hosts.length ?? 0})
               </CardDescription>
             </div>
             <Button onClick={handleSync} className="gap-2">
@@ -275,109 +273,111 @@ export default function HostsPage() {
                   : "Click sync to discover from Cloudflare"}
               </p>
             </div>
-          ) : (
-            <div className="rounded-md border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[50px]">
+          ) : filteredHosts.length ? (
+            // <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={
+                        selectedHosts.length === filteredHosts.length &&
+                        filteredHosts.length > 0
+                      }
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all hosts"
+                    />
+                  </TableHead>
+                  <TableHead className="font-semibold">Name</TableHead>
+                  <TableHead className="font-semibold">Tunnel URL</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="font-semibold">Containers</TableHead>
+                  <TableHead className="font-semibold">Last Seen</TableHead>
+                  <TableHead className="font-semibold">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredHosts.map((host) => (
+                  <TableRow key={host.id} className="hover:bg-accent/50">
+                    <TableCell>
                       <Checkbox
-                        checked={
-                          selectedHosts.length === filteredHosts.length &&
-                          filteredHosts.length > 0
-                        }
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Select all hosts"
+                        checked={selectedHosts.includes(host.id)}
+                        onCheckedChange={() => toggleHostSelection(host.id)}
+                        aria-label={`Select ${host.name}`}
                       />
-                    </TableHead>
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="font-semibold">Tunnel URL</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold">Containers</TableHead>
-                    <TableHead className="font-semibold">Last Seen</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredHosts.map((host) => (
-                    <TableRow key={host.id} className="hover:bg-accent/50">
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedHosts.includes(host.id)}
-                          onCheckedChange={() => toggleHostSelection(host.id)}
-                          aria-label={`Select ${host.name}`}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <Link
+                        href={`/hosts/${host.id}`}
+                        className="hover:underline"
+                      >
+                        {host.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground font-mono text-sm">
+                      {host.tunnelUrl}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            host.status === "Online"
+                              ? "bg-green-500 animate-pulse"
+                              : "bg-red-500"
+                          }`}
                         />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/hosts/${host.id}`}
-                          className="hover:underline"
+                        <Badge
+                          variant={
+                            host.status === "Online" ? "success" : "secondary"
+                          }
+                          className="font-normal gap-1"
                         >
-                          {host.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground font-mono text-sm">
-                        {host.tunnelUrl}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              host.status === "Online"
-                                ? "bg-green-500 animate-pulse"
-                                : "bg-red-500"
-                            }`}
-                          />
-                          <Badge
-                            variant={
-                              host.status === "Online" ? "success" : "secondary"
-                            }
-                            className="font-normal gap-1"
-                          >
-                            {host.status === "Online" ? (
-                              <CheckCircle2 className="h-3 w-3" />
-                            ) : (
-                              <XCircle className="h-3 w-3" />
-                            )}
-                            {host.status}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {/* Enhanced Host Information (#12) */}
-                        <div className="flex items-center gap-1 text-sm">
-                          <Container className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {host.runningContainers || 0}
-                          </span>
-                          <span className="text-muted-foreground">/</span>
-                          <span className="text-muted-foreground">
-                            {host.containerCount || 0}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatLastSeen(host.lastSeen)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => handleCheckStatus(host.id)}
-                            size="sm"
-                            variant="outline"
-                          >
-                            Check Status
-                          </Button>
-                          <Button asChild size="sm" variant="ghost">
-                            <Link href={`/hosts/${host.id}`}>View Details</Link>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                          {host.status === "Online" ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : (
+                            <XCircle className="h-3 w-3" />
+                          )}
+                          {host.status}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {/* Enhanced Host Information (#12) */}
+                      <div className="flex items-center gap-1 text-sm">
+                        <Container className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">
+                          {host.runningContainers || 0}
+                        </span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-muted-foreground">
+                          {host.containerCount || 0}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatLastSeen(host.lastSeen)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => handleCheckStatus(host.id)}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Check Status
+                        </Button>
+                        <Button asChild size="sm" variant="ghost">
+                          <Link href={`/hosts/${host.id}`}>View Details</Link>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            // </div>
+            ``
           )}
         </CardContent>
       </Card>

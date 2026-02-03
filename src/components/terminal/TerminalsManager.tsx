@@ -33,6 +33,7 @@ import {
   ChevronDown,
   Maximize,
   Minimize,
+  Cross,
 } from "lucide-react";
 import { useDocker } from "@/providers/docker.provider";
 import TerminalPane from "./TerminalPane";
@@ -133,31 +134,22 @@ export default function TerminalsManager() {
   return (
     <>
       {/* Bottom Bar Toggle */}
-      <div className="  bottom-0 left-0 right-0 z-40 border-t bg-background">
+      <div className="bottom-0 left-0 right-0 z-40 border-t bg-background">
         <div className="flex items-center justify-between px-4 py-2">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setOpen(!open)}
-              className="gap-2"
-            >
-              <Terminal className="w-4 h-4" />
-              <span className="font-medium">
-                Terminals {terminals.size > 0 && `(${terminals.size})`}
-              </span>
-              {open ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronUp className="w-4 h-4" />
-              )}
-            </Button>
-            <div className="sm:hidden w-px h-6 bg-border" />
-            <div className="hidden sm:block w-px h-6 bg-border" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="icon" className="gap-2" variant={"ghost"}>
-                  <Plus className="w-4 h-4" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setOpen(!open)}
+                  className="gap-2"
+                >
+                  <Terminal className="w-4 h-4" />
+                  <span className="font-medium">
+                    Terminals {terminals.size > 0 && `(${terminals.size})`}
+                  </span>
+                  <Plus />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-[280px]">
@@ -312,6 +304,15 @@ export default function TerminalsManager() {
                 onClick={() => setMaximized(!maximized)}
               >
                 {maximized ? <Minimize /> : <Maximize />}
+              </Button>
+            )}
+            {terminals.size > 0 && (
+              <Button
+                onClick={() => setOpen(!open)}
+                variant={"outline"}
+                size={"icon"}
+              >
+                {open ? <ChevronDown /> : <ChevronUp />}
               </Button>
             )}
           </div>

@@ -98,6 +98,7 @@ export default function ContainerDetailPage() {
   };
 
   const handleRemoveContainer = async () => {
+    if (container?.status !== "stopped") await performAction("stop");
     await performAction("remove");
     setShowRemoveDialog(false);
   };

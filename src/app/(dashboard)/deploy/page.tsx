@@ -41,7 +41,7 @@ type DeploymentType = "single" | "compose";
 
 export default function DeployPage() {
   const router = useRouter();
-  const { hosts } = useDocker();
+  const { hosts, refreshContainers } = useDocker();
   const hostsLoading = !hosts.length;
 
   // Wizard state
@@ -139,7 +139,7 @@ export default function DeployPage() {
 
     // Connect to WebSocket for deployment
     const ws = new WebSocket(
-      `ws://localhost:3000/api/docker/ws/deployment?host=${selectedHost.tunnelUrl}`,
+      `/api/docker/ws/deployment?host=${selectedHost.tunnelUrl}`,
     );
 
     ws.onopen = () => {
@@ -182,7 +182,7 @@ export default function DeployPage() {
       }
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
         const message = JSON.parse(event.data);
 
@@ -201,6 +201,7 @@ export default function DeployPage() {
 
         if (message.type === "deployment_complete") {
           if (message.data.status === "success") {
+            await refreshContainers(selectedHost!.tunnelUrl);
             setDeploymentStatus("success");
             setCreatedContainerId(
               message.data.containerId || message.data.containerIds?.[0],

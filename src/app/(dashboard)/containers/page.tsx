@@ -692,7 +692,7 @@ export default function ContainersPage() {
                         {formatContainerName(container.names)}
                       </CardTitle>
                       <CardDescription className="text-xs font-mono mt-1">
-                        {container.id.substring(0, 12)}
+                        {container.id.substring(0, 12)} - {container.host}
                       </CardDescription>
                       {/* Host Badge for All Hosts mode */}
                       {selectedHost?.tunnelUrl === "all" && container.host && (
