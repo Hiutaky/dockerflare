@@ -769,7 +769,7 @@ const useDockerProvider = (): DockerState => {
   /* -------------------------------------------------------------------------- */
 
   useEffect(() => {
-    if (!hosts.length) setHosts(cachedHosts);
+    if (!hosts.length && cachedHosts) setHosts(cachedHosts);
   }, [cachedHosts]);
   // Check hosts status on mount
   useEffect(() => {
@@ -805,7 +805,7 @@ const useDockerProvider = (): DockerState => {
   }, [fetchedHosts]);
 
   const onlineHosts = useMemo(() => {
-    return hosts.filter((h) => h.status === "Online");
+    return hosts?.filter((h) => h.status === "Online");
   }, [hosts]);
 
   // Save containers to localStorage when updated

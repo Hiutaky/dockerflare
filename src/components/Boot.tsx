@@ -21,11 +21,6 @@ export default function Boot() {
       <div className="bg-[#1a1b26] border border-gray-700/50 rounded-lg shadow-2xl backdrop-blur-sm overflow-hidden">
         {/* Terminal header */}
         <div className="flex items-center gap-2 px-3 py-2 bg-[#1a1b26] border-b border-gray-700/50">
-          <div className="flex gap-1">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          </div>
           <div className="flex-1 text-center">
             <span className="text-xs text-gray-400 font-mono">
               Initializing Dockerflare
