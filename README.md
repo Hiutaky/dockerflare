@@ -55,7 +55,6 @@ cd dockerflare
 bun install
 
 # Set up the database
-cd packages/application  # Navigate to application
 bunx prisma generate
 bunx prisma migrate dev --name init
 

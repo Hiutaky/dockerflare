@@ -731,11 +731,28 @@ export default function ContainersPage() {
                   </div>
 
                   {/* Ports */}
-                  {container.ports && (
+                  {container.ports?.length ? (
                     <div className="flex items-center gap-2 text-sm">
                       <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      <span className="truncate text-muted-foreground">
-                        {container.ports.join(", ")}
+                      <span className="truncate text-muted-foreground flex flex-row gap-2">
+                        {container.ports.map((port, p) => {
+                          const [hostPort] = port.split(":");
+                          return (
+                            <Link
+                              key={p}
+                              href={`http://${container.host}:${hostPort}`}
+                              target="_blank"
+                            >
+                              {port}
+                            </Link>
+                          );
+                        })}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="text-muted-foreground text-sm">
+                        No ports
                       </span>
                     </div>
                   )}

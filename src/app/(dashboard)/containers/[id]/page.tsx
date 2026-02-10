@@ -52,6 +52,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useDocker } from "@/providers/docker.provider";
+import Link from "next/link";
 
 export default function ContainerDetailPage() {
   const params = useParams();
@@ -361,14 +362,22 @@ export default function ContainerDetailPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {container.ports && container.ports.length > 0 ? (
-                  container.ports.map((port, index: number) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm">{port}</p>
+                  container.ports.map((port, index: number) => {
+                    const [hostPort] = port.split(":");
+                    return (
+                      <div key={index} className="flex items-center gap-2">
+                        <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1">
+                          <Link
+                            href={`http://${container.host}:${hostPort}`}
+                            target="_blank"
+                          >
+                            {port}
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No ports exposed
